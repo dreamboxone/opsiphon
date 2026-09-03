@@ -1,8 +1,11 @@
 #!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # install-manual.sh - install Opsiphon without building a package.
 #
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 #
 # Two ways to use it:
 #
@@ -43,7 +46,7 @@ if [ -n "$1" ] && [ "$1" != "--local" ]; then
 		tar -xzf /tmp/opsiphon.tar.gz -C /tmp/opsiphon-install; \
 		cd /tmp/opsiphon-install; sh install-manual.sh --local $ARCH; \
 		rm -rf /tmp/opsiphon-install /tmp/opsiphon.tar.gz"
-	echo ">>> done - open LuCI: Services -> Opsiphon (Psiphon)"
+	echo ">>> done - open LuCI: Services -> Psiphon and press Connect"
 	exit 0
 fi
 
@@ -73,6 +76,8 @@ echo ">>> installing LuCI app"
 install -d /www/luci-static/resources/view/opsiphon /usr/share/luci/menu.d /usr/share/rpcd/acl.d
 install -m 0644 "$L/www/luci-static/resources/view/opsiphon/overview.js" \
 	/www/luci-static/resources/view/opsiphon/overview.js
+install -m 0644 "$L/www/luci-static/resources/view/opsiphon/logo.png" \
+	/www/luci-static/resources/view/opsiphon/logo.png
 install -m 0644 "$L/usr/share/luci/menu.d/luci-app-opsiphon.json" \
 	/usr/share/luci/menu.d/luci-app-opsiphon.json
 install -m 0644 "$L/usr/share/rpcd/acl.d/luci-app-opsiphon.json" \
@@ -84,10 +89,9 @@ rm -rf /tmp/luci-modulecache 2>/dev/null || true
 /etc/init.d/rpcd reload  >/dev/null 2>&1 || /etc/init.d/rpcd restart >/dev/null 2>&1 || true
 /etc/init.d/uhttpd restart >/dev/null 2>&1 || true
 /etc/init.d/opsiphon enable >/dev/null 2>&1 || true
-/etc/init.d/opsiphon restart >/dev/null 2>&1 || true
 
 echo
 echo ">>> installed. status:"
 /usr/libexec/opsiphon-stat || true
 echo
-echo ">>> LuCI: Services -> Opsiphon (Psiphon)"
+echo ">>> LuCI: Services -> Psiphon   (press Connect to start the tunnel)"

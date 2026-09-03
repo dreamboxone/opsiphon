@@ -1,9 +1,12 @@
 #!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # build-apk.sh - build installable OpenWrt 25.12 .apk packages for opsiphon
 # and luci-app-opsiphon, without running the OpenWrt make system.
 #
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 #
 # Why this exists: neither package compiles anything (the Psiphon core is a
 # prebuilt static Go binary, the LuCI app is plain JS/JSON), so the only thing
@@ -38,7 +41,7 @@ ARCH="${1:-arm_cortex-a7_neon-vfpv4}"
 APK="${2:-$APK_BIN}"
 
 VERSION=1.0.0
-RELEASE=1
+RELEASE=2
 PKGVER="$VERSION-r$RELEASE"
 LICENSE="GPL-3.0-only"
 URL="https://github.com/dreamboxone/opsiphon"
@@ -186,9 +189,6 @@ echo "/etc/config/opsiphon" > "$WORK/opsiphon.conffiles"
 cat > "$WORK/opsiphon.postinst" <<'EOF'
 mkdir -p /etc/opsiphon/data
 /etc/init.d/rpcd reload >/dev/null 2>&1
-if [ "$(uci -q get opsiphon.config.autostart)" = "1" ]; then
-	/etc/init.d/opsiphon enable >/dev/null 2>&1
-fi
 exit 0
 EOF
 
@@ -208,6 +208,8 @@ install -d "$I/www/luci-static/resources/view/opsiphon" \
            "$I/usr/share/luci/menu.d" "$I/usr/share/rpcd/acl.d"
 install -m 0644 "$L/www/luci-static/resources/view/opsiphon/overview.js" \
 	"$I/www/luci-static/resources/view/opsiphon/overview.js"
+install -m 0644 "$L/www/luci-static/resources/view/opsiphon/logo.png" \
+	"$I/www/luci-static/resources/view/opsiphon/logo.png"
 install -m 0644 "$L/usr/share/luci/menu.d/luci-app-opsiphon.json" \
 	"$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
 install -m 0644 "$L/usr/share/rpcd/acl.d/luci-app-opsiphon.json" \

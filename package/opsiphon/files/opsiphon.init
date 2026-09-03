@@ -1,7 +1,10 @@
 #!/bin/sh /etc/rc.common
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # opsiphon - Psiphon circumvention client for OpenWrt
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 
 START=95
 STOP=10
@@ -30,9 +33,9 @@ start_service() {
 	config_load opsiphon
 	sync_autostart
 
-	config_get_bool enabled config enabled 1
+	config_get_bool enabled config enabled 0
 	if [ "$enabled" != "1" ]; then
-		logger -t opsiphon "not starting: disabled in /etc/config/opsiphon"
+		logger -t opsiphon "not starting: disabled (press Connect in LuCI)"
 		return 0
 	fi
 

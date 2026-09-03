@@ -1,7 +1,10 @@
 #!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # rpcd backend for luci-app-opsiphon (ubus object: luci.opsiphon)
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 
 . /usr/share/libubox/jshn.sh
 
@@ -44,7 +47,7 @@ method_state() {
 	[ "$tunnels" -gt 0 ] && connected=1
 
 	enabled=$(uci -q get opsiphon.config.enabled)
-	[ -n "$enabled" ] || enabled=1
+	[ -n "$enabled" ] || enabled=0
 	[ "$enabled" = "1" ] && enabled=1 || enabled=0
 
 	autostart=0

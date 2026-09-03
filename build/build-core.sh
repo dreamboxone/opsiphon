@@ -1,9 +1,12 @@
 #!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # build-core.sh - cross compile the Psiphon core (psiphon-tunnel-core console
 # client) for an OpenWrt target.
 #
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 #
 # Usage:
 #   ./build/build-core.sh                  # default: ipq40xx / arm_cortex-a7_neon-vfpv4

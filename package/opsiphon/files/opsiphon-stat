@@ -1,7 +1,10 @@
 #!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # opsiphon-stat - print opsiphon status on the command line
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 
 STATE=/var/run/opsiphon/state
 LOG=/var/log/opsiphon/notices.log

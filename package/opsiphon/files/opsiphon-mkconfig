@@ -1,7 +1,10 @@
 #!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # opsiphon-mkconfig - generate a psiphon-tunnel-core config file from UCI
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 
 . /lib/functions.sh
 
@@ -42,10 +45,18 @@ if [ -z "$PROTOCOLS" ]; then
 	for p in $protocols_opt; do add_protocol "$p"; done
 fi
 
-config_get sponsor_id       network sponsor_id 'FFFFFFFFFFFFFFFF'
-config_get propagation_id   network propagation_id 'FFFFFFFFFFFFFFFF'
-config_get server_list_url  network server_list_url 'https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed'
-config_get server_list_key  network server_list_key "$DEFAULT_SERVER_LIST_KEY"
+# Psiphon network identity. It lives in the main 'config' section; the
+# separate 'network' section of opsiphon 1.0.0-r1 is still honoured so that
+# existing installations keep working after an upgrade.
+config_get l_sponsor_id      network sponsor_id ''
+config_get l_propagation_id  network propagation_id ''
+config_get l_server_list_url network server_list_url ''
+config_get l_server_list_key network server_list_key ''
+
+config_get sponsor_id       config sponsor_id "${l_sponsor_id:-FFFFFFFFFFFFFFFF}"
+config_get propagation_id   config propagation_id "${l_propagation_id:-FFFFFFFFFFFFFFFF}"
+config_get server_list_url  config server_list_url "${l_server_list_url:-https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed}"
+config_get server_list_key  config server_list_key "${l_server_list_key:-$DEFAULT_SERVER_LIST_KEY}"
 
 [ -n "$server_list_key" ] || server_list_key="$DEFAULT_SERVER_LIST_KEY"
 

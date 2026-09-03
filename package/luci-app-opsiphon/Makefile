@@ -1,4 +1,8 @@
 #
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # luci-app-opsiphon - LuCI web interface for Opsiphon (Psiphon on OpenWrt)
 # https://github.com/dreamboxone/opsiphon   -   support: https://t.me/routekernel1
 #
@@ -10,7 +14,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-opsiphon
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_MAINTAINER:=routekernel <https://t.me/routekernel1>
 PKG_LICENSE:=GPL-3.0-only
@@ -47,6 +51,8 @@ define Package/luci-app-opsiphon/install
 	$(INSTALL_DIR) $(1)/www/luci-static/resources/view/opsiphon
 	$(INSTALL_DATA) ./root/www/luci-static/resources/view/opsiphon/overview.js \
 		$(1)/www/luci-static/resources/view/opsiphon/overview.js
+	$(INSTALL_DATA) ./root/www/luci-static/resources/view/opsiphon/logo.png \
+		$(1)/www/luci-static/resources/view/opsiphon/logo.png
 
 	$(INSTALL_DIR) $(1)/usr/share/luci/menu.d
 	$(INSTALL_DATA) ./root/usr/share/luci/menu.d/luci-app-opsiphon.json \

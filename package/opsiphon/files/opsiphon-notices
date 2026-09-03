@@ -1,7 +1,10 @@
 #!/usr/bin/awk -f
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # opsiphon-notices - consume psiphon-tunnel-core notice stream, keep live state
-# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
-# Support: https://t.me/routekernel1
 #
 # Reads JSON notices on stdin, maintains /var/run/opsiphon/state (key=value)
 # and a bounded human log in /var/log/opsiphon/notices.log. Nothing is written

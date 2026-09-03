@@ -1,4 +1,8 @@
 #
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
 # opsiphon - Psiphon circumvention client for OpenWrt
 # https://github.com/dreamboxone/opsiphon   -   support: https://t.me/routekernel1
 #
@@ -11,7 +15,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=opsiphon
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_MAINTAINER:=routekernel <https://t.me/routekernel1>
 PKG_LICENSE:=GPL-3.0-only
@@ -84,10 +88,7 @@ define Package/opsiphon/postinst
 [ -n "$${IPKG_INSTROOT}" ] && exit 0
 mkdir -p /etc/opsiphon/data
 /etc/init.d/rpcd reload >/dev/null 2>&1
-if [ "$$(uci -q get opsiphon.config.autostart)" = "1" ]; then
-	/etc/init.d/opsiphon enable >/dev/null 2>&1
-fi
-echo "opsiphon installed. Configure it in LuCI: Services -> Opsiphon (Psiphon)"
+echo "opsiphon installed. Open LuCI -> Services -> Psiphon and press Connect."
 exit 0
 endef
 
