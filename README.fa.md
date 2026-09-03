@@ -2,7 +2,7 @@
 
 # Opsiphon — سایفون برای OpenWrt (با رابط گرافیکی LuCI)
 
-**نسخه ۱.۰.۰** · پشتیبانی و تماس: [t.me/routekernel1](https://t.me/routekernel1)
+**نسخه ۱.۰.۱** · پشتیبانی و تماس: [t.me/routekernel1](https://t.me/routekernel1)
 🇬🇧 **[English guide: README.md](README.md)**
 
 Opsiphon کلاینت کنسولی متن‌باز
@@ -146,7 +146,72 @@ ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-ap
 
 ---
 
-## ۵) خط فرمان
+## ۵) PassWall2، آمار مصرف و قوانین ایران
+
+### پنل PassWall2
+
+Opsiphon خودش تشخیص می‌دهد PassWall2 نصب است یا نه و وضعیت اتصالشان را نشان
+می‌دهد. تا وقتی گزینه‌ی *Keep a PassWall2 node in sync* (تب General) روشن است،
+با هر بار روشن شدن تونل یک نود در PassWall2 ساخته یا به‌روز می‌شود:
+
+```
+config nodes 'opsiphon'
+	option remarks 'Opsiphon (Psiphon)'
+	option type 'Xray'
+	option protocol 'socks'
+	option address '127.0.0.1'
+	option port '1080'      # با پورت SOCKS5 خودت هماهنگ می‌شود
+```
+
+این نود **هیچ‌وقت خودبه‌خود فعال نمی‌شود** — عبور دادن کل ترافیک تصمیم توست.
+دکمه‌های پنل:
+
+| دکمه | کارش چیست |
+| --- | --- |
+| **Create / refresh node** | نود بالا را می‌سازد/به‌روز می‌کند، هماهنگ با پورت فعلی SOCKS. |
+| **Use as active node** | اگر PassWall2 نود shunt داشته باشد، `default_node` آن را روی Opsiphon می‌گذارد (قوانین خودت دست‌نخورده می‌ماند)؛ وگرنه آن را نود اصلی می‌کند. |
+| **Keep Iran traffic direct** | قانون `Iran` (شامل `geosite:ir` و `geoip:ir`) را روی `_direct` می‌گذارد تا سایت‌ها و آی‌پی‌های ایرانی از تونل رد نشوند، و آدرس فایل‌های geo را هم به نسخه ایرانی تغییر می‌دهد. |
+| **Send Iran traffic through tunnel** | همان قانون را به `_default` برمی‌گرداند. |
+| **Remove node** | نود را حذف می‌کند و اگر فعال بوده جدایش می‌کند. |
+
+قبل از هر تغییر، از `/etc/config/passwall2` یک نسخه پشتیبان زمان‌دار در
+`/etc/opsiphon/backup` ساخته می‌شود (۱۰ نسخه آخر نگه داشته می‌شود).
+
+### قوانین مسیریابی ایران
+
+پنل، دو فایل داده‌ی [Iran-v2ray-rules](https://github.com/chocolate4u/Iran-v2ray-rules)
+را دانلود می‌کند و حجم و تاریخشان را نشان می‌دهد:
+
+* `geoip.dat` — شامل `geoip:ir`
+* `geosite.dat` — شامل `geosite:ir`
+
+فایل‌ها در پوشه‌ی asset خود PassWall2 (`v2ray_location_asset`، معمولاً
+`/usr/share/v2ray/`) نوشته می‌شوند، و اگر `/usr/share/xray` یا
+`/usr/share/sing-box` وجود داشته باشد همان‌جا هم کپی می‌شوند؛ بعدش PassWall2
+ری‌استارت می‌شود. اگر دانلود ناقص باشد، فایل سالم قبلی جایگزین نمی‌شود. هر وقت
+خواستی همان دکمه را دوباره بزن تا به‌روز شوند.
+
+یک نکته مهم: این فایل‌ها **داده‌ی مسیریابی Xray / sing-box** هستند. خود سایفون
+هیچ قانون مسیریابی ندارد — یک تونل است، نه روتر — پس «ایران از تونل رد نشود» را
+عملاً مدیر پروکسی انجام می‌دهد، و به همین دلیل این بخش کنار پنل PassWall2 معنی
+پیدا می‌کند.
+
+### آمار مصرف
+
+شمارنده‌های تونل، روزانه در فایل `<data directory>/usage.csv` جمع می‌شوند (یک
+خط برای هر روز، هر ۵ دقیقه و موقع توقف نوشته می‌شود، پس تقریباً هیچ فشاری روی
+فلش نیست). پنل Traffic نشان می‌دهد:
+
+* نمودار دایره‌ای دانلود در برابر آپلود برای بازه‌ی انتخابی،
+* مجموع امروز / ۷ روز / ۳۰ روز / کل،
+* نمودار ستونی ۱۴ روز اخیر.
+
+مرز روز، تاریخ و تایم‌زون خود روتر است. دستور `opsiphon-usage report` همین
+اعداد را به‌صورت JSON می‌دهد و `opsiphon-usage reset` تاریخچه را پاک می‌کند.
+
+---
+
+## ۶) خط فرمان
 
 ```sh
 /etc/init.d/opsiphon start|stop|restart|status
@@ -163,7 +228,7 @@ uci commit opsiphon
 
 ---
 
-## ۶) بیلد کردن
+## ۷) بیلد کردن
 
 ### هسته سایفون
 
@@ -201,7 +266,7 @@ OpenWrt روی فایل‌سیستم غیرحساس‌به‌حروف (مثل د
 
 ---
 
-## ۷) معماری داخلی
+## ۸) معماری داخلی
 
 ```
 psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon/state
@@ -218,7 +283,7 @@ psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon
 
 ---
 
-## ۸) نکته‌ها
+## ۹) نکته‌ها
 
 * شناسه‌های پیش‌فرض، مقادیر عمومی متن‌باز هستند؛ مجموعه سرورها دقیقاً همان
   چیزی نیست که اپ‌های رسمی سایفون می‌گیرند.

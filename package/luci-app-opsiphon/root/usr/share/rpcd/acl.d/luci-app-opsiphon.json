@@ -3,7 +3,7 @@
 		"description": "Grant access to Opsiphon (Psiphon) status and configuration",
 		"read": {
 			"ubus": {
-				"luci.opsiphon": [ "state", "log" ]
+				"luci.opsiphon": [ "state", "log", "usage", "passwall", "rules" ]
 			},
 			"uci": [ "opsiphon" ]
 		},

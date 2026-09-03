@@ -40,8 +40,8 @@ fi
 ARCH="${1:-arm_cortex-a7_neon-vfpv4}"
 APK="${2:-$APK_BIN}"
 
-VERSION=1.0.0
-RELEASE=3
+VERSION=1.0.1
+RELEASE=1
 PKGVER="$VERSION-r$RELEASE"
 LICENSE="GPL-3.0-only"
 URL="https://github.com/dreamboxone/opsiphon"
@@ -93,13 +93,11 @@ finalize() {
 	# root:root, dirs 0755, data 0644, programs 0755
 	find "$idir" -type d -exec chmod 0755 {} +
 	find "$idir" -type f -exec chmod 0644 {} +
-	for x in usr/bin/psiphon-tunnel-core \
-	         etc/init.d/opsiphon \
-	         usr/libexec/opsiphon-mkconfig \
-	         usr/libexec/opsiphon-notices \
-	         usr/libexec/opsiphon-stat \
-	         usr/libexec/rpcd/luci.opsiphon; do
-		[ -f "$idir/$x" ] && chmod 0755 "$idir/$x"
+	# anything that is meant to be run must be executable - derive that from
+	# where it lives instead of listing files, so a new helper cannot be
+	# shipped non-executable by accident
+	for d in usr/bin usr/sbin etc/init.d usr/libexec usr/libexec/rpcd; do
+		[ -d "$idir/$d" ] && find "$idir/$d" -maxdepth 1 -type f -exec chmod 0755 {} +
 	done
 	chown -R 0:0 "$idir"
 
@@ -182,6 +180,9 @@ install -m 0755 "$F/opsiphon.init"       "$I/etc/init.d/opsiphon"
 install -m 0755 "$F/opsiphon-mkconfig"   "$I/usr/libexec/opsiphon-mkconfig"
 install -m 0755 "$F/opsiphon-notices"    "$I/usr/libexec/opsiphon-notices"
 install -m 0755 "$F/opsiphon-stat"       "$I/usr/libexec/opsiphon-stat"
+install -m 0755 "$F/opsiphon-usage"      "$I/usr/libexec/opsiphon-usage"
+install -m 0755 "$F/opsiphon-rules"      "$I/usr/libexec/opsiphon-rules"
+install -m 0755 "$F/opsiphon-passwall"   "$I/usr/libexec/opsiphon-passwall"
 install -m 0755 "$F/luci.opsiphon"       "$I/usr/libexec/rpcd/luci.opsiphon"
 
 echo "/etc/config/opsiphon" > "$WORK/opsiphon.conffiles"
@@ -210,8 +211,10 @@ install -m 0644 "$L/www/luci-static/resources/view/opsiphon/overview.js" \
 	"$I/www/luci-static/resources/view/opsiphon/overview.js"
 install -m 0644 "$L/www/luci-static/resources/view/opsiphon/logo.png" \
 	"$I/www/luci-static/resources/view/opsiphon/logo.png"
-install -m 0644 "$L/usr/share/luci/menu.d/luci-app-opsiphon.json" \
-	"$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
+sed "s/\"title\": \"Psiphon[^\"]*\"/\"title\": \"Psiphon $VERSION\"/" \
+	"$L/usr/share/luci/menu.d/luci-app-opsiphon.json" \
+	> "$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
+chmod 0644 "$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
 install -m 0644 "$L/usr/share/rpcd/acl.d/luci-app-opsiphon.json" \
 	"$I/usr/share/rpcd/acl.d/luci-app-opsiphon.json"
 

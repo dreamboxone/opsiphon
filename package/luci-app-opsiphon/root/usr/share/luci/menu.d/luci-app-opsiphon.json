@@ -1,6 +1,6 @@
 {
 	"admin/services/opsiphon": {
-		"title": "Psiphon",
+		"title": "Psiphon 1.0.1",
 		"order": 40,
 		"action": {
 			"type": "view",

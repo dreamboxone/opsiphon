@@ -28,7 +28,7 @@ sync_autostart() {
 }
 
 start_service() {
-	local enabled data_dir listen_interface server_list_file cmd
+	local enabled data_dir listen_interface server_list_file cmd pw
 
 	config_load opsiphon
 	sync_autostart
@@ -74,6 +74,13 @@ start_service() {
 	procd_set_param stderr 0
 	procd_set_param pidfile /var/run/opsiphon.pid
 	procd_close_instance
+
+	# keep the PassWall2 node in sync with our proxy port, if asked to
+	local pw
+	config_get_bool pw config passwall_integration 1
+	if [ "$pw" = "1" ] && [ -x /usr/libexec/opsiphon-passwall ]; then
+		/usr/libexec/opsiphon-passwall sync >/dev/null 2>&1 &
+	fi
 }
 
 stop_service() {

@@ -54,7 +54,7 @@ method_state() {
 	/etc/init.d/opsiphon enabled >/dev/null 2>&1 && autostart=1
 
 	json_init
-	json_add_string "version" "1.0.0"
+	json_add_string "version" "1.0.1"
 	json_add_string "core_rev" "$(core_version)"
 	json_add_boolean "running" "$running"
 	json_add_boolean "connected" "$connected"
@@ -104,8 +104,20 @@ method_log() {
 	json_dump
 }
 
+method_usage() {
+	/usr/libexec/opsiphon-usage report 2>/dev/null || echo '{}'
+}
+
+method_passwall() {
+	/usr/libexec/opsiphon-passwall status 2>/dev/null || echo '{"installed":0}'
+}
+
+method_rules() {
+	/usr/libexec/opsiphon-rules status 2>/dev/null || echo '{}'
+}
+
 method_action() {
-	local name input rc=0
+	local name input out rc=0
 	read -r input
 	[ -n "$input" ] || input='{}'
 	json_load "$input" 2>/dev/null
@@ -123,6 +135,24 @@ method_action() {
 		restart|reconnect)
 			/etc/init.d/opsiphon restart >/dev/null 2>&1 || rc=1
 			;;
+		pw_sync)
+			out=$(/usr/libexec/opsiphon-passwall sync 2>&1) || rc=1
+			;;
+		pw_activate)
+			out=$(/usr/libexec/opsiphon-passwall activate 2>&1) || rc=1
+			;;
+		pw_iran_on)
+			out=$(/usr/libexec/opsiphon-passwall iran on 2>&1) || rc=1
+			;;
+		pw_iran_off)
+			out=$(/usr/libexec/opsiphon-passwall iran off 2>&1) || rc=1
+			;;
+		pw_remove)
+			out=$(/usr/libexec/opsiphon-passwall remove 2>&1) || rc=1
+			;;
+		rules_update)
+			out=$(/usr/libexec/opsiphon-rules update 2>&1) || rc=1
+			;;
 		*)
 			rc=1
 			;;
@@ -131,6 +161,7 @@ method_action() {
 	json_init
 	json_add_boolean "ok" "$((1 - rc))"
 	json_add_string "action" "$name"
+	json_add_string "output" "$out"
 	json_dump
 }
 
@@ -140,13 +171,19 @@ case "$1" in
 		json_add_object "state"; json_close_object
 		json_add_object "log"; json_add_int "lines" 50; json_close_object
 		json_add_object "action"; json_add_string "name" "start"; json_close_object
+		json_add_object "usage"; json_close_object
+		json_add_object "passwall"; json_close_object
+		json_add_object "rules"; json_close_object
 		json_dump
 		;;
 	call)
 		case "$2" in
-			state)  method_state ;;
-			log)    method_log ;;
-			action) method_action ;;
+			state)    method_state ;;
+			log)      method_log ;;
+			usage)    method_usage ;;
+			passwall) method_passwall ;;
+			rules)    method_rules ;;
+			action)   method_action ;;
 			*)      echo '{"error":"unknown method"}' ;;
 		esac
 		;;

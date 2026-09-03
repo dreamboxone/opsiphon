@@ -70,6 +70,9 @@ install -m 0755 "$F/opsiphon.init"     /etc/init.d/opsiphon
 install -m 0755 "$F/opsiphon-mkconfig" /usr/libexec/opsiphon-mkconfig
 install -m 0755 "$F/opsiphon-notices"  /usr/libexec/opsiphon-notices
 install -m 0755 "$F/opsiphon-stat"     /usr/libexec/opsiphon-stat
+install -m 0755 "$F/opsiphon-usage"    /usr/libexec/opsiphon-usage
+install -m 0755 "$F/opsiphon-rules"    /usr/libexec/opsiphon-rules
+install -m 0755 "$F/opsiphon-passwall" /usr/libexec/opsiphon-passwall
 install -m 0755 "$F/luci.opsiphon"     /usr/libexec/rpcd/luci.opsiphon
 
 echo ">>> installing LuCI app"

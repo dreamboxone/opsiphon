@@ -1,0 +1,215 @@
+#!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
+# opsiphon-passwall - PassWall2 integration
+#
+#   opsiphon-passwall status      JSON: is PassWall2 there, is our node there
+#   opsiphon-passwall sync        create / update the Opsiphon SOCKS node
+#   opsiphon-passwall activate    make that node the one PassWall2 uses
+#   opsiphon-passwall iran on|off keep Iranian traffic out of the tunnel
+#   opsiphon-passwall remove      delete our node again
+#
+# Every write makes a timestamped backup of /etc/config/passwall2 first, and
+# only ever touches our own node plus the settings the command names.
+
+PW=passwall2
+PWCFG=/etc/config/passwall2
+NODE=opsiphon              # our section name in passwall2's config
+BACKUP_DIR=/etc/opsiphon/backup
+
+installed() { [ -f "$PWCFG" ] && [ -x /etc/init.d/$PW ]; }
+
+backup() {
+	mkdir -p "$BACKUP_DIR"
+	cp -f "$PWCFG" "$BACKUP_DIR/passwall2.$(date +%Y%m%d-%H%M%S).bak" 2>/dev/null
+	# keep the last 10 backups only
+	ls -1t "$BACKUP_DIR"/passwall2.*.bak 2>/dev/null | tail -n +11 | while read -r f; do
+		rm -f "$f" 2>/dev/null
+	done
+}
+
+opsiphon_port() {
+	local p
+	p="$(uci -q get opsiphon.config.socks_port)"
+	[ -n "$p" ] && [ "$p" != "0" ] || p=1080
+	echo "$p"
+}
+
+opsiphon_addr() {
+	# when the proxies are bound to an interface they are still reachable on
+	# loopback, so 127.0.0.1 is always the right address for a local node
+	echo "127.0.0.1"
+}
+
+# the node PassWall2 currently uses, and its protocol
+active_node() { uci -q get $PW.@global[0].node; }
+
+shunt_node() {
+	# first node section whose protocol is _shunt
+	local s
+	for s in $(uci -q show $PW | sed -n "s/^$PW\.\([^.]*\)\.protocol='_shunt'$/\1/p"); do
+		echo "$s"; return 0
+	done
+	return 1
+}
+
+iran_rule() {
+	# shunt rule section carrying the Iran geo rules
+	local s remarks
+	for s in $(uci -q show $PW | sed -n "s/^$PW\.\([^.]*\)=shunt_rules$/\1/p"); do
+		remarks="$(uci -q get $PW.$s.remarks)"
+		case "$remarks" in
+			Iran|iran|IR|IRAN) echo "$s"; return 0 ;;
+		esac
+	done
+	return 1
+}
+
+ensure_iran_rule() {
+	local s
+	s="$(iran_rule)" && { echo "$s"; return 0; }
+
+	# PassWall2 ships this rule by default; recreate it if the user removed it
+	uci -q set $PW.Iran=shunt_rules
+	uci -q set $PW.Iran.remarks='Iran'
+	uci -q set $PW.Iran.network='tcp,udp'
+	uci -q set $PW.Iran.domain_list='geosite:ir'
+	uci -q set $PW.Iran.ip_list='geoip:ir'
+	uci -q set $PW.Iran.group='IR'
+	echo "Iran"
+}
+
+restart_pw() {
+	[ -x /etc/init.d/$PW ] || return 0
+	/etc/init.d/$PW status >/dev/null 2>&1 && /etc/init.d/$PW restart >/dev/null 2>&1 &
+	return 0
+}
+
+cmd_sync() {
+	installed || { echo "PassWall2 is not installed" >&2; exit 1; }
+	backup
+
+	local port addr
+	port="$(opsiphon_port)"
+	addr="$(opsiphon_addr)"
+
+	uci -q set $PW.$NODE=nodes
+	uci -q set $PW.$NODE.remarks='Opsiphon (Psiphon)'
+	uci -q set $PW.$NODE.type='Xray'
+	uci -q set $PW.$NODE.protocol='socks'
+	uci -q set $PW.$NODE.address="$addr"
+	uci -q set $PW.$NODE.port="$port"
+	uci -q set $PW.$NODE.tls='0'
+	uci -q set $PW.$NODE.transport='raw'
+	uci -q commit $PW
+
+	echo "node $NODE -> socks $addr:$port"
+	restart_pw
+}
+
+cmd_activate() {
+	installed || { echo "PassWall2 is not installed" >&2; exit 1; }
+	uci -q get $PW.$NODE >/dev/null 2>&1 || cmd_sync >/dev/null
+	backup
+
+	local shunt
+	if shunt="$(shunt_node)"; then
+		# keep the user's routing rules, just make us the default outbound
+		uci -q set $PW.$shunt.default_node="$NODE"
+		echo "shunt node $shunt now defaults to $NODE"
+	else
+		uci -q set $PW.@global[0].node="$NODE"
+		echo "PassWall2 now uses $NODE directly"
+	fi
+	uci -q commit $PW
+	restart_pw
+}
+
+cmd_iran() {
+	installed || { echo "PassWall2 is not installed" >&2; exit 1; }
+	backup
+
+	local shunt rule target
+	rule="$(ensure_iran_rule)"
+
+	case "$1" in
+		off) target='_default' ;;
+		*)   target='_direct' ;;
+	esac
+
+	if shunt="$(shunt_node)"; then
+		uci -q set $PW.$shunt.$rule="$target"
+		echo "shunt node $shunt: rule $rule -> $target"
+	else
+		uci -q commit $PW
+		echo "no shunt node in PassWall2 - create one (protocol '_shunt') to use routing rules" >&2
+		exit 1
+	fi
+
+	if [ "$target" = "_direct" ]; then
+		# the Iran rules need the Iran data files, not the default ones
+		local gi gs
+		gi="$(uci -q get opsiphon.config.geoip_url)"
+		gs="$(uci -q get opsiphon.config.geosite_url)"
+		[ -n "$gi" ] && uci -q set $PW.@global_rules[0].geoip_url="$gi"
+		[ -n "$gs" ] && uci -q set $PW.@global_rules[0].geosite_url="$gs"
+	fi
+
+	uci -q commit $PW
+	restart_pw
+}
+
+cmd_remove() {
+	installed || exit 0
+	backup
+	local shunt
+	if shunt="$(shunt_node)"; then
+		[ "$(uci -q get $PW.$shunt.default_node)" = "$NODE" ] && \
+			uci -q delete $PW.$shunt.default_node
+	fi
+	[ "$(active_node)" = "$NODE" ] && uci -q delete $PW.@global[0].node
+	uci -q delete $PW.$NODE
+	uci -q commit $PW
+	echo "node $NODE removed"
+	restart_pw
+}
+
+cmd_status() {
+	local inst=0 running=0 node=0 node_port='' active=0 shunt='' rule='' iran='' ver=''
+
+	if installed; then
+		inst=1
+		/etc/init.d/$PW status >/dev/null 2>&1 && running=1
+		if uci -q get $PW.$NODE >/dev/null 2>&1; then
+			node=1
+			node_port="$(uci -q get $PW.$NODE.port)"
+		fi
+		shunt="$(shunt_node)" || shunt=''
+		rule="$(iran_rule)" || rule=''
+		[ -n "$shunt" ] && [ -n "$rule" ] && iran="$(uci -q get $PW.$shunt.$rule)"
+		if [ -n "$shunt" ]; then
+			[ "$(uci -q get $PW.$shunt.default_node)" = "$NODE" ] && active=1
+		fi
+		[ "$(active_node)" = "$NODE" ] && active=1
+		ver="$(opkg list-installed 2>/dev/null | sed -n 's/^luci-app-passwall2 - //p' | head -1)"
+		[ -n "$ver" ] || ver="$(apk list -I luci-app-passwall2 2>/dev/null | sed -n 's/^luci-app-passwall2-\([^ ]*\).*/\1/p' | head -1)"
+	fi
+
+	printf '{"installed":%d,"running":%d,"node":%d,"node_port":"%s","active":%d,' \
+		"$inst" "$running" "$node" "${node_port:-}" "$active"
+	printf '"shunt":"%s","iran_rule":"%s","iran_direct":%d,"version":"%s","expected_port":"%s"}\n' \
+		"${shunt:-}" "${rule:-}" "$([ "$iran" = "_direct" ] && echo 1 || echo 0)" \
+		"${ver:-}" "$(opsiphon_port)"
+}
+
+case "$1" in
+	status)   cmd_status ;;
+	sync)     cmd_sync ;;
+	activate) cmd_activate ;;
+	iran)     cmd_iran "$2" ;;
+	remove)   cmd_remove ;;
+	*) echo "usage: $0 status | sync | activate | iran on|off | remove" >&2; exit 1 ;;
+esac

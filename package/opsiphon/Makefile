@@ -14,8 +14,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=opsiphon
-PKG_VERSION:=1.0.0
-PKG_RELEASE:=3
+PKG_VERSION:=1.0.1
+PKG_RELEASE:=1
 
 PKG_MAINTAINER:=routekernel <https://t.me/routekernel1>
 PKG_LICENSE:=GPL-3.0-only
@@ -78,6 +78,9 @@ define Package/opsiphon/install
 	$(INSTALL_BIN) ./files/opsiphon-mkconfig $(1)/usr/libexec/opsiphon-mkconfig
 	$(INSTALL_BIN) ./files/opsiphon-notices $(1)/usr/libexec/opsiphon-notices
 	$(INSTALL_BIN) ./files/opsiphon-stat $(1)/usr/libexec/opsiphon-stat
+	$(INSTALL_BIN) ./files/opsiphon-usage $(1)/usr/libexec/opsiphon-usage
+	$(INSTALL_BIN) ./files/opsiphon-rules $(1)/usr/libexec/opsiphon-rules
+	$(INSTALL_BIN) ./files/opsiphon-passwall $(1)/usr/libexec/opsiphon-passwall
 
 	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
 	$(INSTALL_BIN) ./files/luci.opsiphon $(1)/usr/libexec/rpcd/luci.opsiphon

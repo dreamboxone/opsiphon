@@ -1,0 +1,96 @@
+#!/bin/sh
+#
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
+# opsiphon-usage - per-day traffic accounting for the tunnel
+#
+#   opsiphon-usage add <sent-bytes> <received-bytes>   add a delta to today
+#   opsiphon-usage report                              JSON: day / week / month
+#   opsiphon-usage reset                               forget all history
+#
+# History lives in one small CSV (date,sent,received) in the data directory, so
+# it survives reboots. It is written at most every few minutes by the notice
+# collector, never per packet.
+
+DATA_DIR="$(uci -q get opsiphon.config.data_dir)"
+[ -n "$DATA_DIR" ] || DATA_DIR=/etc/opsiphon/data
+CSV="$DATA_DIR/usage.csv"
+KEEP_DAYS=400
+
+today() { date +%F; }
+
+add() {
+	local sent="${1:-0}" recv="${2:-0}" day
+	case "$sent$recv" in *[!0-9]*) exit 0 ;; esac
+	[ "$sent" = "0" ] && [ "$recv" = "0" ] && exit 0
+
+	day="$(today)"
+	mkdir -p "$DATA_DIR"
+	[ -f "$CSV" ] || : > "$CSV"
+
+	awk -F, -v day="$day" -v s="$sent" -v r="$recv" -v keep="$KEEP_DAYS" '
+		BEGIN { found = 0; n = 0 }
+		NF >= 3 {
+			if ($1 == day) { $2 += s; $3 += r; found = 1 }
+			n++
+			rows[n] = $1 "," $2 "," $3
+		}
+		END {
+			if (!found) { n++; rows[n] = day "," s "," r }
+			start = (n > keep) ? n - keep + 1 : 1
+			for (i = start; i <= n; i++) print rows[i]
+		}
+	' "$CSV" > "$CSV.tmp" 2>/dev/null && mv "$CSV.tmp" "$CSV"
+}
+
+report() {
+	local day
+	day="$(today)"
+	[ -f "$CSV" ] || { echo '{"today":{"sent":0,"received":0},"week":{"sent":0,"received":0},"month":{"sent":0,"received":0},"total":{"sent":0,"received":0},"days":[]}'; return; }
+
+	# day boundaries as epoch seconds, computed by date(1) so the router's
+	# own timezone decides when a day starts
+	local d7 d30
+	d7="$(date -d "-6 days" +%F 2>/dev/null)"
+	d30="$(date -d "-29 days" +%F 2>/dev/null)"
+	[ -n "$d7" ] || d7="$day"
+	[ -n "$d30" ] || d30="$day"
+
+	awk -F, -v day="$day" -v d7="$d7" -v d30="$d30" '
+		function jrow(d, s, r) { return "{\"date\":\"" d "\",\"sent\":" s ",\"received\":" r "}" }
+		NF >= 3 {
+			n++
+			dates[n] = $1; sent[n] = $2 + 0; recv[n] = $3 + 0
+			ts += $2; tr += $3
+			if ($1 == day) { ds = $2 + 0; dr = $3 + 0 }
+			if ($1 >= d7)  { ws += $2; wr += $3 }
+			if ($1 >= d30) { ms += $2; mr += $3 }
+		}
+		END {
+			printf "{"
+			printf "\"today\":{\"sent\":%d,\"received\":%d},", ds, dr
+			printf "\"week\":{\"sent\":%d,\"received\":%d},", ws, wr
+			printf "\"month\":{\"sent\":%d,\"received\":%d},", ms, mr
+			printf "\"total\":{\"sent\":%d,\"received\":%d},", ts, tr
+			printf "\"days\":["
+			start = (n > 30) ? n - 29 : 1
+			first = 1
+			for (i = start; i <= n; i++) {
+				if (!first) printf ","
+				printf "%s", jrow(dates[i], sent[i], recv[i])
+				first = 0
+			}
+			printf "]}"
+			print ""
+		}
+	' "$CSV"
+}
+
+case "$1" in
+	add)    add "$2" "$3" ;;
+	report) report ;;
+	reset)  rm -f "$CSV" ;;
+	*)      echo "usage: $0 add <sent> <received> | report | reset" >&2; exit 1 ;;
+esac

@@ -1,6 +1,6 @@
 # Opsiphon — Psiphon for OpenWrt (with LuCI GUI)
 
-**Version 1.0.0** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
+**Version 1.0.1** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
 🇮🇷 **[راهنمای فارسی: README.fa.md](README.fa.md)**
 
 Opsiphon runs the open source
@@ -142,7 +142,71 @@ Either way the last warning or error from Psiphon is shown under
 
 ---
 
-## 5. Command line
+## 5. PassWall2, traffic history and Iran rules
+
+### PassWall2 panel
+
+Opsiphon detects PassWall2 and shows what state the integration is in. While
+*Keep a PassWall2 node in sync* (General tab) is on, every start of the tunnel
+creates or refreshes a node in PassWall2:
+
+```
+config nodes 'opsiphon'
+	option remarks 'Opsiphon (Psiphon)'
+	option type 'Xray'
+	option protocol 'socks'
+	option address '127.0.0.1'
+	option port '1080'      # follows your SOCKS5 port
+```
+
+The node is **never activated by itself** — routing all your traffic is your
+decision. The panel's buttons are:
+
+| Button | What it does |
+| --- | --- |
+| **Create / refresh node** | Writes the node above, matching the current SOCKS port. |
+| **Use as active node** | If PassWall2 has a shunt node, sets that node's `default_node` to Opsiphon (keeping your rules); otherwise sets it as the global node. |
+| **Keep Iran traffic direct** | Sets the `Iran` shunt rule (`geosite:ir` + `geoip:ir`) to `_direct`, so Iranian sites and IPs bypass the tunnel, and points PassWall2's geo data at the Iran rule files. |
+| **Send Iran traffic through tunnel** | Puts that rule back to `_default`. |
+| **Remove node** | Deletes the node again and detaches it if it was active. |
+
+Every write makes a timestamped backup of `/etc/config/passwall2` in
+`/etc/opsiphon/backup` (the last 10 are kept).
+
+### Iran routing rules
+
+The panel downloads the two [Iran-v2ray-rules](https://github.com/chocolate4u/Iran-v2ray-rules)
+data files and shows their size and age:
+
+* `geoip.dat` — carries `geoip:ir`
+* `geosite.dat` — carries `geosite:ir`
+
+They go to PassWall2's asset directory (`v2ray_location_asset`, normally
+`/usr/share/v2ray/`), are mirrored to `/usr/share/xray` and `/usr/share/sing-box`
+when those exist, and PassWall2 is restarted afterwards. A truncated download
+never replaces a good file. Press the button again any time to update them.
+
+Note what these files are: they are **Xray / sing-box routing data**. Psiphon
+itself has no routing rules — it is a tunnel, not a router — so "keep Iranian
+traffic out of the tunnel" is done by the proxy manager, which is why this pairs
+with the PassWall2 panel.
+
+### Traffic history
+
+The tunnel's byte counters are accumulated per day into
+`<data directory>/usage.csv` (one line per day, flushed every 5 minutes and on
+stop, so it costs almost nothing in flash writes). The Traffic panel shows:
+
+* a donut of download vs upload for the selected period,
+* today / 7 days / 30 days / all time totals,
+* a 14-day bar chart.
+
+The day boundary is the router's own date and timezone. `opsiphon-usage report`
+prints the same numbers as JSON, and `opsiphon-usage reset` clears the history.
+
+---
+
+## 6. Command line
 
 ```sh
 /etc/init.d/opsiphon start|stop|restart|status
@@ -159,7 +223,7 @@ to a UCI option of the same name.
 
 ---
 
-## 6. Building
+## 7. Building
 
 ### The Psiphon core
 
@@ -197,7 +261,7 @@ On a proper Linux build host the full SDK route also works:
 
 ---
 
-## 7. How it works
+## 8. How it works
 
 ```
 psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon/state
@@ -213,7 +277,7 @@ psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon
 
 ---
 
-## 8. Notes
+## 9. Notes
 
 * The default sponsor/propagation IDs are the public community values; the
   server pool is not identical to the official Psiphon apps.
