@@ -26,6 +26,9 @@ define Package/opsiphon
   TITLE:=Psiphon circumvention client (psiphon-tunnel-core)
   URL:=https://github.com/dreamboxone/opsiphon
   DEPENDS:=+jshn +libubox
+  # metadata arch: nothing is compiled here (the Go core is prebuilt), so the
+  # package arch can be set explicitly and does not depend on the SDK target
+  PKGARCH:=$(if $(OPSIPHON_PKGARCH),$(OPSIPHON_PKGARCH),$(ARCH_PACKAGES))
 endef
 
 define Package/opsiphon/description

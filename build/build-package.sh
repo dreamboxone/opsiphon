@@ -8,13 +8,18 @@
 # Usage:
 #   ./build/build-package.sh /path/to/openwrt-sdk-25.12.5-...  [openwrt-arch]
 #
-# Example (the ipq40xx / GL-B1300 class routers this was written for):
+# Example (the ipq40xx / Cortex-A7 routers this was written for):
 #   ./build/build-package.sh ~/openwrt-sdk-25.12.5-x86-64_gcc-14.3.0_musl.Linux-x86_64 \
 #       arm_cortex-a7_neon-vfpv4
 #
-# The script copies the prebuilt core binary for the requested architecture
-# into package/opsiphon/files/, links both packages into the SDK and builds
-# them. Resulting .ipk / .apk files are copied back to ./dist/.
+# Note on SDK targets: neither package compiles anything (the Psiphon core is a
+# prebuilt static Go binary and the LuCI app is plain JS/JSON), so any 25.12 SDK
+# can produce the packages. The package architecture is taken from the second
+# argument and written into the package metadata via OPSIPHON_PKGARCH, so an
+# x86-64 SDK can package the ARMv7 core correctly. Using the SDK that matches
+# your target is still the cleanest option when you have it.
+#
+# Results are copied to ./dist/.
 
 set -e
 
@@ -38,9 +43,12 @@ if [ ! -f "$CORE" ]; then
 	exit 1
 fi
 
-echo ">>> SDK   : $SDK"
-echo ">>> arch  : $ARCH"
-echo ">>> core  : $CORE"
+SDK_ARCH="$(ls -d "$SDK"/staging_dir/target-* 2>/dev/null | head -1 | sed 's|.*/target-||')"
+
+echo ">>> SDK       : $SDK"
+echo ">>> SDK target: ${SDK_ARCH:-unknown}"
+echo ">>> package   : $ARCH"
+echo ">>> core      : $CORE"
 
 cp "$CORE" "$ROOT/package/opsiphon/files/psiphon-tunnel-core"
 chmod 755 "$ROOT/package/opsiphon/files/psiphon-tunnel-core"
@@ -53,21 +61,23 @@ cp -a "$ROOT/package/luci-app-opsiphon" "$SDK/package/opsiphon-src/luci-app-opsi
 
 cd "$SDK"
 
-# a bare SDK has no package index yet
+# a bare SDK has no build configuration yet
 if [ ! -f "$SDK/.config" ]; then
 	echo ">>> preparing SDK defaults (no .config found)"
 	make defconfig
 fi
 
+JOBS="$(nproc 2>/dev/null || echo 1)"
+
 echo ">>> building opsiphon"
-make package/opsiphon/compile V=s -j"$(nproc 2>/dev/null || echo 1)"
+make package/opsiphon/compile OPSIPHON_PKGARCH="$ARCH" V=s -j"$JOBS"
 
 echo ">>> building luci-app-opsiphon"
-make package/luci-app-opsiphon/compile V=s -j"$(nproc 2>/dev/null || echo 1)"
+make package/luci-app-opsiphon/compile V=s -j"$JOBS"
 
 mkdir -p "$ROOT/dist"
 found=0
-for f in $(find "$SDK/bin" -name 'opsiphon*' -o -name 'luci-app-opsiphon*' 2>/dev/null); do
+for f in $(find "$SDK/bin" \( -name 'opsiphon*' -o -name 'luci-app-opsiphon*' \) 2>/dev/null); do
 	case "$f" in
 		*.ipk|*.apk)
 			cp -f "$f" "$ROOT/dist/"

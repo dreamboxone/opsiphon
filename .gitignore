@@ -1,4 +1,5 @@
 .build/
 dist/*.ipk
+dist/*.tar.gz
 dist/*.apk
 package/opsiphon/files/psiphon-tunnel-core

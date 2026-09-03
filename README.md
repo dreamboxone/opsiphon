@@ -34,7 +34,8 @@ Extra, router-specific:
 
 ```
 build/build-core.sh        cross-compile the Psiphon core for any OpenWrt arch
-build/build-package.sh     build .ipk/.apk with an official OpenWrt SDK
+build/build-apk.sh         build installable .apk packages (recommended)
+build/build-package.sh     build .ipk/.apk via the full OpenWrt SDK make system
 package/opsiphon/          service package (binary, procd init, UCI, rpcd backend)
 package/luci-app-opsiphon/ LuCI application (JS view, menu, ACL)
 prebuilt/<arch>/           cross-compiled psiphon-tunnel-core binaries
@@ -56,25 +57,53 @@ so the result is a static binary that runs on musl OpenWrt unchanged.
 The binary lands in `prebuilt/<openwrt-arch>/psiphon-tunnel-core`.
 A ready-made `arm_cortex-a7_neon-vfpv4` build is already included.
 
-## 2. Build the packages with the OpenWrt SDK
+## 2. Build the installable packages
 
-```sh
-./build/build-package.sh ~/openwrt-sdk-25.12.5-x86-64_gcc-14.3.0_musl.Linux-x86_64 \
-    arm_cortex-a7_neon-vfpv4
+OpenWrt 25.12 uses `apk`. Ready-made packages for `arm_cortex-a7_neon-vfpv4`
+are already in `dist/`:
+
+```
+dist/opsiphon-1.0.0-r1.apk             (arch: arm_cortex-a7_neon-vfpv4)
+dist/luci-app-opsiphon-1.0.0-r1.apk    (arch: noarch)
 ```
 
-Results are copied to `dist/`. OpenWrt 25.12 uses `apk`, so install with:
+To rebuild them, the recommended route is `build/build-apk.sh`. It performs
+exactly the packaging steps `include/package-pack.mk` performs for APK targets
+(file list, conffiles + checksums, install/upgrade/deinstall scripts) and then
+calls `apk mkpkg`. Nothing is compiled, so it does not need a working OpenWrt
+build environment - only the `apk` tool that ships with any 25.12 SDK:
+
+```sh
+./build/build-apk.sh arm_cortex-a7_neon-vfpv4 \
+    ~/openwrt-sdk-25.12.5-*/staging_dir/host/bin/apk
+```
+
+Run it as root (or under a working fakeroot) so the packaged files end up
+`root:root` - the script refuses to guess and warns if it cannot.
+
+Alternatively, on a proper Linux build host you can use the full SDK make
+system:
+
+```sh
+./build/build-package.sh ~/openwrt-sdk-25.12.5-<target> arm_cortex-a7_neon-vfpv4
+```
+
+Note that the OpenWrt build system requires a case-sensitive filesystem and
+ncurses, so it will not run from a mounted Windows folder - that is why
+`build-apk.sh` exists.
+
+### Install on the router
 
 ```sh
 scp dist/*.apk root@192.168.1.1:/tmp/
-ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-app-opsiphon-*.apk'
+ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-1.0.0-r1.apk /tmp/luci-app-opsiphon-1.0.0-r1.apk'
 ```
 
-On OpenWrt 24.10 and older the SDK produces `.ipk` instead:
+`opsiphon` depends on `jshn` and `libubox`, `luci-app-opsiphon` on `luci-base` -
+all part of a normal OpenWrt + LuCI installation, so no download is needed.
 
-```sh
-ssh root@192.168.1.1 'opkg install /tmp/opsiphon_*.ipk /tmp/luci-app-opsiphon_*.ipk'
-```
+On OpenWrt 24.10 and older (opkg / .ipk), use `build/build-package.sh` with a
+24.10 SDK and install with `opkg install`.
 
 ## 3. Or install without packages
 
