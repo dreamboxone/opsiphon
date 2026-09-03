@@ -1,0 +1,145 @@
+#!/bin/sh
+# rpcd backend for luci-app-opsiphon (ubus object: luci.opsiphon)
+# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
+# Support: https://t.me/routekernel1
+
+. /usr/share/libubox/jshn.sh
+
+STATE=/var/run/opsiphon/state
+LOG=/var/log/opsiphon/notices.log
+VERSION_CACHE=/var/run/opsiphon/core_version
+CORE=/usr/bin/psiphon-tunnel-core
+
+state_get() {
+	sed -n "s/^$1=//p" "$STATE" 2>/dev/null | tail -1
+}
+
+num() {
+	case "$1" in
+		''|*[!0-9]*) echo 0 ;;
+		*) echo "$1" ;;
+	esac
+}
+
+core_version() {
+	if [ ! -s "$VERSION_CACHE" ]; then
+		mkdir -p /var/run/opsiphon
+		if [ -x "$CORE" ]; then
+			"$CORE" -v 2>&1 | tr -d '\r' | head -c 500 > "$VERSION_CACHE" 2>/dev/null
+		fi
+	fi
+	# `-v` prints human readable lines: "  Revision: <rev>"
+	sed -n 's/^[ 	]*Revision:[ 	]*//p' "$VERSION_CACHE" 2>/dev/null | head -1
+}
+
+is_running() {
+	pgrep -f "$CORE" >/dev/null 2>&1
+}
+
+method_state() {
+	local running=0 connected=0 tunnels enabled autostart
+
+	is_running && running=1
+	tunnels=$(num "$(state_get tunnels)")
+	[ "$tunnels" -gt 0 ] && connected=1
+
+	enabled=$(uci -q get opsiphon.config.enabled)
+	[ -n "$enabled" ] || enabled=1
+	[ "$enabled" = "1" ] && enabled=1 || enabled=0
+
+	autostart=0
+	/etc/init.d/opsiphon enabled >/dev/null 2>&1 && autostart=1
+
+	json_init
+	json_add_string "version" "1.0.0"
+	json_add_string "core_rev" "$(core_version)"
+	json_add_boolean "running" "$running"
+	json_add_boolean "connected" "$connected"
+	json_add_boolean "enabled" "$enabled"
+	json_add_boolean "autostart" "$autostart"
+	json_add_int "tunnels" "$tunnels"
+	json_add_int "connected_since" "$(num "$(state_get connected_since)")"
+	json_add_int "updated" "$(num "$(state_get updated)")"
+	json_add_int "now" "$(date +%s)"
+	json_add_int "sent" "$(num "$(state_get sent)")"
+	json_add_int "received" "$(num "$(state_get received)")"
+	json_add_int "socks_port" "$(num "$(state_get socks_port)")"
+	json_add_int "http_port" "$(num "$(state_get http_port)")"
+	json_add_string "server_region" "$(state_get server_region)"
+	json_add_string "client_region" "$(state_get client_region)"
+	json_add_string "homepage" "$(state_get homepage)"
+	json_add_string "last_event" "$(state_get last_event)"
+	json_add_string "last_message" "$(state_get last_message)"
+
+	json_add_array "regions"
+	local r
+	for r in $(state_get regions | tr ',' ' '); do
+		json_add_string "" "$r"
+	done
+	json_close_array
+
+	json_dump
+}
+
+method_log() {
+	local lines input
+	read -r input
+	[ -n "$input" ] || input='{}'
+	json_load "$input" 2>/dev/null
+	json_get_var lines lines
+	case "$lines" in
+		''|*[!0-9]*) lines=50 ;;
+	esac
+
+	json_init
+	json_add_string "log" "$(tail -n "$lines" "$LOG" 2>/dev/null)"
+	json_dump
+}
+
+method_action() {
+	local name input rc=0
+	read -r input
+	[ -n "$input" ] || input='{}'
+	json_load "$input" 2>/dev/null
+	json_get_var name name
+
+	case "$name" in
+		start|connect)
+			uci -q set opsiphon.config.enabled='1' && uci -q commit opsiphon
+			/etc/init.d/opsiphon restart >/dev/null 2>&1 || rc=1
+			;;
+		stop|disconnect)
+			uci -q set opsiphon.config.enabled='0' && uci -q commit opsiphon
+			/etc/init.d/opsiphon stop >/dev/null 2>&1 || rc=1
+			;;
+		restart|reconnect)
+			/etc/init.d/opsiphon restart >/dev/null 2>&1 || rc=1
+			;;
+		*)
+			rc=1
+			;;
+	esac
+
+	json_init
+	json_add_boolean "ok" "$((1 - rc))"
+	json_add_string "action" "$name"
+	json_dump
+}
+
+case "$1" in
+	list)
+		json_init
+		json_add_object "state"; json_close_object
+		json_add_object "log"; json_add_int "lines" 50; json_close_object
+		json_add_object "action"; json_add_string "name" "start"; json_close_object
+		json_dump
+		;;
+	call)
+		case "$2" in
+			state)  method_state ;;
+			log)    method_log ;;
+			action) method_action ;;
+			*)      echo '{"error":"unknown method"}' ;;
+		esac
+		;;
+esac

@@ -1,0 +1,13 @@
+{
+	"admin/services/opsiphon": {
+		"title": "Opsiphon (Psiphon)",
+		"order": 40,
+		"action": {
+			"type": "view",
+			"path": "opsiphon/overview"
+		},
+		"depends": {
+			"acl": [ "luci-app-opsiphon" ]
+		}
+	}
+}

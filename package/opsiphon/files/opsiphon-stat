@@ -1,0 +1,63 @@
+#!/bin/sh
+# opsiphon-stat - print opsiphon status on the command line
+# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
+# Support: https://t.me/routekernel1
+
+STATE=/var/run/opsiphon/state
+LOG=/var/log/opsiphon/notices.log
+
+get() {
+	sed -n "s/^$1=//p" "$STATE" 2>/dev/null | tail -1
+}
+
+human() {
+	local b="${1:-0}"
+	if [ "$b" -ge 1073741824 ] 2>/dev/null; then
+		echo "$((b / 1048576)) MiB"
+	elif [ "$b" -ge 1048576 ] 2>/dev/null; then
+		echo "$((b / 1048576)).$(( (b % 1048576) * 10 / 1048576 )) MiB"
+	elif [ "$b" -ge 1024 ] 2>/dev/null; then
+		echo "$((b / 1024)) KiB"
+	else
+		echo "${b} B"
+	fi
+}
+
+running=no
+pgrep -f "$(printf '%s' /usr/bin/psiphon-tunnel-core)" >/dev/null 2>&1 && running=yes
+
+echo "opsiphon 1.0.0"
+echo "service running : $running"
+echo "enabled (uci)   : $(uci -q get opsiphon.config.enabled || echo 1)"
+echo "start on boot   : $(/etc/init.d/opsiphon enabled >/dev/null 2>&1 && echo yes || echo no)"
+
+if [ ! -f "$STATE" ]; then
+	echo "state           : no state file (service stopped?)"
+	exit 0
+fi
+
+tunnels=$(get tunnels)
+[ "${tunnels:-0}" -gt 0 ] 2>/dev/null && conn=connected || conn=disconnected
+
+echo "tunnel          : $conn (${tunnels:-0} tunnel(s))"
+echo "egress region   : $(get server_region)"
+echo "client region   : $(get client_region)"
+echo "socks proxy     : 127.0.0.1:$(get socks_port)"
+echo "http proxy      : 127.0.0.1:$(get http_port)"
+echo "sent            : $(human "$(get sent)")"
+echo "received        : $(human "$(get received)")"
+
+since=$(get connected_since)
+if [ "${since:-0}" -gt 0 ] 2>/dev/null; then
+	up=$(( $(date +%s) - since ))
+	echo "uptime          : $((up / 3600))h $(((up % 3600) / 60))m $((up % 60))s"
+fi
+
+echo "last event      : $(get last_event) $(get last_message)"
+echo "available regions: $(get regions)"
+
+if [ "$1" = "-l" ] || [ "$1" = "--log" ]; then
+	echo
+	echo "--- last notices ---"
+	tail -n 30 "$LOG" 2>/dev/null
+fi

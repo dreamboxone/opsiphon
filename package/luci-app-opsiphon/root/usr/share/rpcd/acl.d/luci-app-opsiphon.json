@@ -1,0 +1,17 @@
+{
+	"luci-app-opsiphon": {
+		"description": "Grant access to Opsiphon (Psiphon) status and configuration",
+		"read": {
+			"ubus": {
+				"luci.opsiphon": [ "state", "log" ]
+			},
+			"uci": [ "opsiphon" ]
+		},
+		"write": {
+			"ubus": {
+				"luci.opsiphon": [ "action" ]
+			},
+			"uci": [ "opsiphon" ]
+		}
+	}
+}

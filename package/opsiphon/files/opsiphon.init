@@ -1,0 +1,89 @@
+#!/bin/sh /etc/rc.common
+# opsiphon - Psiphon circumvention client for OpenWrt
+# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
+# Support: https://t.me/routekernel1
+
+START=95
+STOP=10
+USE_PROCD=1
+
+PROG=/usr/bin/psiphon-tunnel-core
+MKCONFIG=/usr/libexec/opsiphon-mkconfig
+NOTICES=/usr/libexec/opsiphon-notices
+CONFIG_JSON=/var/etc/opsiphon.json
+STATE_DIR=/var/run/opsiphon
+LOG_DIR=/var/log/opsiphon
+
+sync_autostart() {
+	local autostart
+	config_get_bool autostart config autostart 1
+	if [ "$autostart" = "1" ]; then
+		enable
+	else
+		disable
+	fi
+}
+
+start_service() {
+	local enabled data_dir listen_interface cmd
+
+	config_load opsiphon
+	sync_autostart
+
+	config_get_bool enabled config enabled 1
+	if [ "$enabled" != "1" ]; then
+		logger -t opsiphon "not starting: disabled in /etc/config/opsiphon"
+		return 0
+	fi
+
+	if [ ! -x "$PROG" ]; then
+		logger -t opsiphon "core binary $PROG is missing"
+		return 1
+	fi
+
+	config_get data_dir config data_dir '/etc/opsiphon/data'
+	config_get listen_interface config listen_interface ''
+
+	mkdir -p "$data_dir" "$STATE_DIR" "$LOG_DIR" /var/etc
+	: > "$LOG_DIR/notices.log"
+
+	if ! "$MKCONFIG" > "$CONFIG_JSON"; then
+		logger -t opsiphon "failed to generate $CONFIG_JSON"
+		return 1
+	fi
+	chmod 600 "$CONFIG_JSON"
+
+	cmd="$PROG -config $CONFIG_JSON -dataRootDirectory $data_dir"
+	[ -n "$listen_interface" ] && cmd="$cmd -listenInterface $listen_interface"
+
+	procd_open_instance opsiphon
+	# psiphon writes its notice stream to stderr; it is piped into the state
+	# collector so the GUI always has live status without touching flash.
+	procd_set_param command /bin/sh -c "exec $cmd 2>&1 | exec $NOTICES"
+	procd_set_param respawn 3600 10 0
+	procd_set_param stdout 0
+	procd_set_param stderr 0
+	procd_set_param pidfile /var/run/opsiphon.pid
+	procd_close_instance
+}
+
+stop_service() {
+	# procd terminates the wrapper shell; make sure the core and the notice
+	# collector go with it (the collector exits on EOF once the core is gone)
+	killall -q psiphon-tunnel-core 2>/dev/null
+	rm -f "$STATE_DIR/state" "$CONFIG_JSON"
+}
+
+reload_service() {
+	config_load opsiphon
+	sync_autostart
+	restart
+}
+
+service_triggers() {
+	procd_add_reload_trigger "opsiphon"
+}
+
+status_service() {
+	/usr/libexec/opsiphon-stat
+}

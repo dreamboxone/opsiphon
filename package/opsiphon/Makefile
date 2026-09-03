@@ -1,0 +1,99 @@
+#
+# opsiphon - Psiphon circumvention client for OpenWrt
+# https://github.com/dreamboxone/opsiphon   -   support: https://t.me/routekernel1
+#
+# The Psiphon core is a Go binary that is cross compiled outside of the SDK
+# (see build/build-core.sh) and dropped into files/psiphon-tunnel-core before
+# this package is built.
+#
+
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=opsiphon
+PKG_VERSION:=1.0.0
+PKG_RELEASE:=1
+
+PKG_MAINTAINER:=routekernel <https://t.me/routekernel1>
+PKG_LICENSE:=GPL-3.0-only
+PKG_LICENSE_FILES:=LICENSE
+
+include $(INCLUDE_DIR)/package.mk
+
+define Package/opsiphon
+  SECTION:=net
+  CATEGORY:=Network
+  SUBMENU:=VPN
+  TITLE:=Psiphon circumvention client (psiphon-tunnel-core)
+  URL:=https://github.com/dreamboxone/opsiphon
+  DEPENDS:=+jshn +libubox
+endef
+
+define Package/opsiphon/description
+ Psiphon censorship circumvention client for OpenWrt, built on the open
+ source psiphon-tunnel-core console client.
+
+ Provides a procd service, UCI configuration, a local SOCKS5 and HTTP proxy,
+ egress country selection and a live status / traffic statistics collector
+ that feeds luci-app-opsiphon.
+endef
+
+define Package/opsiphon/conffiles
+/etc/config/opsiphon
+endef
+
+# Nothing to compile inside the SDK: the Go core is prebuilt per architecture.
+define Build/Prepare
+	mkdir -p $(PKG_BUILD_DIR)
+endef
+
+define Build/Configure
+endef
+
+define Build/Compile
+	@if [ ! -f ./files/psiphon-tunnel-core ]; then \
+		echo "ERROR: ./files/psiphon-tunnel-core is missing."; \
+		echo "Run build/build-core.sh (or build/build-package.sh) first."; \
+		exit 1; \
+	fi
+endef
+
+define Package/opsiphon/install
+	$(INSTALL_DIR) $(1)/usr/bin
+	$(INSTALL_BIN) ./files/psiphon-tunnel-core $(1)/usr/bin/psiphon-tunnel-core
+
+	$(INSTALL_DIR) $(1)/etc/config
+	$(INSTALL_CONF) ./files/opsiphon.config $(1)/etc/config/opsiphon
+
+	$(INSTALL_DIR) $(1)/etc/init.d
+	$(INSTALL_BIN) ./files/opsiphon.init $(1)/etc/init.d/opsiphon
+
+	$(INSTALL_DIR) $(1)/usr/libexec
+	$(INSTALL_BIN) ./files/opsiphon-mkconfig $(1)/usr/libexec/opsiphon-mkconfig
+	$(INSTALL_BIN) ./files/opsiphon-notices $(1)/usr/libexec/opsiphon-notices
+	$(INSTALL_BIN) ./files/opsiphon-stat $(1)/usr/libexec/opsiphon-stat
+
+	$(INSTALL_DIR) $(1)/usr/libexec/rpcd
+	$(INSTALL_BIN) ./files/luci.opsiphon $(1)/usr/libexec/rpcd/luci.opsiphon
+endef
+
+define Package/opsiphon/postinst
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+mkdir -p /etc/opsiphon/data
+/etc/init.d/rpcd reload >/dev/null 2>&1
+if [ "$$(uci -q get opsiphon.config.autostart)" = "1" ]; then
+	/etc/init.d/opsiphon enable >/dev/null 2>&1
+fi
+echo "opsiphon installed. Configure it in LuCI: Services -> Opsiphon (Psiphon)"
+exit 0
+endef
+
+define Package/opsiphon/prerm
+#!/bin/sh
+[ -n "$${IPKG_INSTROOT}" ] && exit 0
+/etc/init.d/opsiphon stop >/dev/null 2>&1
+/etc/init.d/opsiphon disable >/dev/null 2>&1
+exit 0
+endef
+
+$(eval $(call BuildPackage,opsiphon))

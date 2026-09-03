@@ -1,0 +1,76 @@
+#!/bin/sh
+# opsiphon-mkconfig - generate a psiphon-tunnel-core config file from UCI
+# Part of opsiphon 1.0.0 - https://github.com/dreamboxone/opsiphon
+# Support: https://t.me/routekernel1
+
+. /lib/functions.sh
+
+# Public signature key for the community remote server list. This is the key
+# published with the open source psiphon-tunnel-core sample configuration.
+DEFAULT_SERVER_LIST_KEY="MIICIDANBgkqhkiG9w0BAQEFAAOCAg0AMIICCAKCAgEAt7Ls+/39r+T6zNW7GiVpJfzq/xvL9SBH5rIFnk0RXYEYavax3WS6HOD35eTAqn8AniOwiH+DOkvgSKF2caqk/y1dfq47Pdymtwzp9ikpB1C5OfAysXzBiwVJlCdajBKvBZDerV1cMvRzCKvKwRmvDmHgphQQ7WfXIGbRbmmk6opMBh3roE42KcotLFtqp0RRwLtcBRNtCdsrVsjiI1Lqz/lH+T61sGjSjQ3CHMuZYSQJZo/KrvzgQXpkaCTdbObxHqb6/+i1qaVOfEsvjoiyzTxJADvSytVtcTjijhPEV6XskJVHE1Zgl+7rATr/pDQkw6DPCNBS1+Y6fy7GstZALQXwEDN/qhQI9kWkHijT8ns+i1vGg00Mk/6J75arLhqcodWsdeG/M/moWgqQAnlZAGVtJI1OgeF5fsPpXu4kctOfuZlGjVZXQNW34aOzm8r8S0eVZitPlbhcPiR4gT/aSMz/wd8lZlzZYsje/Jr8u/YtlwjjreZrGRmG8KMOzukV3lLmMppXFMvl4bxv6YFEmIuTsOhbLTwFgh7KYNjodLj/LsqRVfwz31PgWQFTEPICV7GCvgVlPRxnofqKSjgTWI4mxDhBpVcATvaoBl1L/6WLbFvBsoAUBItWwctO2xalKxF5szhGm8lccoc5MZr8kfE0uxMgsxz4er68iCID+rsCAQM="
+
+json_escape() {
+	# escape backslash, double quote and control characters
+	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037'
+}
+
+PROTOCOLS=""
+add_protocol() {
+	local p="$1"
+	[ -n "$p" ] || return 0
+	if [ -n "$PROTOCOLS" ]; then
+		PROTOCOLS="$PROTOCOLS, \"$(json_escape "$p")\""
+	else
+		PROTOCOLS="\"$(json_escape "$p")\""
+	fi
+}
+
+config_load opsiphon
+
+config_get region           config region ''
+config_get socks_port       config socks_port '1080'
+config_get http_port        config http_port '8080'
+config_get data_dir         config data_dir '/etc/opsiphon/data'
+config_get establish_timeout config establish_timeout '0'
+config_get_bool stats       config stats 1
+
+# protocols may be stored either as a UCI list (CLI users) or as a single
+# space separated option (that is what LuCI's MultiValue writes)
+config_list_foreach config protocols add_protocol
+if [ -z "$PROTOCOLS" ]; then
+	config_get protocols_opt config protocols ''
+	for p in $protocols_opt; do add_protocol "$p"; done
+fi
+
+config_get sponsor_id       network sponsor_id 'FFFFFFFFFFFFFFFF'
+config_get propagation_id   network propagation_id 'FFFFFFFFFFFFFFFF'
+config_get server_list_url  network server_list_url 'https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed'
+config_get server_list_key  network server_list_key "$DEFAULT_SERVER_LIST_KEY"
+
+[ -n "$server_list_key" ] || server_list_key="$DEFAULT_SERVER_LIST_KEY"
+
+printf '{\n'
+printf '  "PropagationChannelId": "%s",\n' "$(json_escape "$propagation_id")"
+printf '  "SponsorId": "%s",\n'            "$(json_escape "$sponsor_id")"
+printf '  "RemoteServerListUrl": "%s",\n'  "$(json_escape "$server_list_url")"
+printf '  "RemoteServerListDownloadFilename": "remote_server_list",\n'
+printf '  "RemoteServerListSignaturePublicKey": "%s",\n' "$(json_escape "$server_list_key")"
+printf '  "DataRootDirectory": "%s",\n'    "$(json_escape "$data_dir")"
+printf '  "LocalSocksProxyPort": %d,\n'    "${socks_port:-1080}"
+printf '  "LocalHttpProxyPort": %d,\n'     "${http_port:-8080}"
+
+[ -n "$region" ] && printf '  "EgressRegion": "%s",\n' "$(json_escape "$region")"
+[ -n "$PROTOCOLS" ] && printf '  "LimitTunnelProtocols": [%s],\n' "$PROTOCOLS"
+[ "${establish_timeout:-0}" -gt 0 ] 2>/dev/null && \
+	printf '  "EstablishTunnelTimeoutSeconds": %d,\n' "$establish_timeout"
+
+[ "${socks_port:-1080}" -eq 0 ] 2>/dev/null && printf '  "DisableLocalSocksProxy": true,\n'
+[ "${http_port:-8080}" -eq 0 ]  2>/dev/null && printf '  "DisableLocalHTTPProxy": true,\n'
+
+if [ "$stats" = "1" ]; then
+	printf '  "EmitBytesTransferred": true,\n'
+fi
+
+# Keep this last so the JSON object always ends without a trailing comma.
+printf '  "EmitDiagnosticNotices": false\n'
+printf '}\n'
