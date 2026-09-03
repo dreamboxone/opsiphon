@@ -62,10 +62,22 @@ function write_state(   tmp) {
 	printf "homepage=%s\n", homepage > tmp
 	printf "last_event=%s\n", last_event > tmp
 	printf "last_message=%s\n", last_message > tmp
+	printf "started=%d\n", started > tmp
+	printf "attempts=%d\n", attempts > tmp
+	printf "candidates=%d\n", candidates > tmp
+	printf "serverlist=%d\n", serverlist > tmp
+	printf "last_warning=%s\n", last_warning > tmp
 	close(tmp)
 	system("mv " tmp " " state_file)
 	last_write = systime()
 	dirty = 0
+}
+
+function shorten(m) {
+	# Psiphon errors carry the whole internal call chain; keep the head (what
+	# failed) and the tail (why) so the GUI stays readable
+	if (length(m) <= 160) return m
+	return substr(m, 1, 90) " … " substr(m, length(m) - 59)
 }
 
 function logline(nt, msg) {
@@ -93,7 +105,8 @@ BEGIN {
 	sent = 0; received = 0; total_sent = 0; total_received = 0
 	socks_port = 0; http_port = 0
 	server_region = ""; client_region = ""; regions = ""; homepage = ""
-	last_event = "Starting"; last_message = ""
+	last_event = "Starting"; last_message = ""; last_warning = ""
+	started = systime(); attempts = 0; candidates = -1; serverlist = 0
 	log_lines = 0; last_write = 0; dirty = 1
 	write_state()
 }
@@ -145,10 +158,22 @@ BEGIN {
 		tunnels = 0; connected_since = 0; important = 1
 		logline(nt, "")
 	} else if (nt == "ConnectingServer") {
+		attempts++
 		dirty = 1
 		logline(nt, sval("region") " " sval("protocol"))
+	} else if (nt == "CandidateServers") {
+		# how many servers psiphon actually has to try; 0 means the server
+		# list was never obtained (bootstrap blocked)
+		v = nval("count"); if (v >= 0) candidates = v
+		important = 1
+		logline(nt, "count=" candidates " region=" sval("region"))
+	} else if (nt == "RemoteServerListResourceDownloaded") {
+		serverlist = 1
+		important = 1
+		logline(nt, sval("url"))
 	} else if (nt == "Alert" || nt == "Error" || nt == "Warning" || nt == "InternalError" || nt == "ServerAlert") {
-		last_message = sval("message") sval("reason")
+		last_message = shorten(sval("message") sval("reason"))
+		last_warning = nt ": " last_message
 		important = 1
 		logline(nt, last_message)
 	} else if (nt == "Info" || nt == "UserLog") {
@@ -167,6 +192,7 @@ BEGIN {
 END {
 	tunnels = 0
 	connected_since = 0
+	attempts = 0
 	last_event = "Stopped"
 	write_state()
 }

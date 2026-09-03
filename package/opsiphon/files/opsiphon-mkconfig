@@ -36,6 +36,8 @@ config_get http_port        config http_port '8080'
 config_get data_dir         config data_dir '/etc/opsiphon/data'
 config_get establish_timeout config establish_timeout '0'
 config_get_bool stats       config stats 1
+config_get_bool diagnostics config diagnostics 1
+config_get upstream_proxy   config upstream_proxy ''
 
 # protocols may be stored either as a UCI list (CLI users) or as a single
 # space separated option (that is what LuCI's MultiValue writes)
@@ -82,6 +84,18 @@ if [ "$stats" = "1" ]; then
 	printf '  "EmitBytesTransferred": true,\n'
 fi
 
-# Keep this last so the JSON object always ends without a trailing comma.
-printf '  "EmitDiagnosticNotices": false\n'
+# Route the tunnel itself through another proxy first. This is what makes
+# bootstrapping possible where Psiphon's own servers are unreachable.
+[ -n "$upstream_proxy" ] && \
+	printf '  "UpstreamProxyURL": "%s",\n' "$(json_escape "$upstream_proxy")"
+
+# Diagnostic notices carry the Warning / Error / CandidateServers messages that
+# explain *why* a tunnel is not establishing - without them a blocked client
+# just sits at "Connecting..." with nothing to show. Keep this last so the JSON
+# object always ends without a trailing comma.
+if [ "$diagnostics" = "1" ]; then
+	printf '  "EmitDiagnosticNotices": true\n'
+else
+	printf '  "EmitDiagnosticNotices": false\n'
+fi
 printf '}\n'

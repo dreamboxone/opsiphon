@@ -41,7 +41,7 @@ ARCH="${1:-arm_cortex-a7_neon-vfpv4}"
 APK="${2:-$APK_BIN}"
 
 VERSION=1.0.0
-RELEASE=2
+RELEASE=3
 PKGVER="$VERSION-r$RELEASE"
 LICENSE="GPL-3.0-only"
 URL="https://github.com/dreamboxone/opsiphon"

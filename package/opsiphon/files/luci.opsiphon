@@ -71,6 +71,11 @@ method_state() {
 	json_add_string "server_region" "$(state_get server_region)"
 	json_add_string "client_region" "$(state_get client_region)"
 	json_add_string "homepage" "$(state_get homepage)"
+	json_add_int "started" "$(num "$(state_get started)")"
+	json_add_int "attempts" "$(num "$(state_get attempts)")"
+	json_add_int "candidates" "$(state_get candidates | grep -E '^-?[0-9]+$' || echo -1)"
+	json_add_boolean "serverlist" "$(num "$(state_get serverlist)")"
+	json_add_string "last_warning" "$(state_get last_warning)"
 	json_add_string "last_event" "$(state_get last_event)"
 	json_add_string "last_message" "$(state_get last_message)"
 

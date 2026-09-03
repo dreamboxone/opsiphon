@@ -99,7 +99,62 @@ function badge(text, color) {
 function stateBadge(st) {
 	if (!st.running)  return badge(_('Stopped'), '#8a8a8a');
 	if (st.connected) return badge(_('Connected'), '#2e7d32');
-	return badge(_('Connecting…'), '#ef6c00');
+
+	var trying = (st.started > 0 && st.now > 0) ? (st.now - st.started) : 0;
+	var b = badge(_('Connecting…'), trying > 120 ? '#c62828' : '#ef6c00');
+	if (!trying) return b;
+
+	return E('span', {}, [
+		b, ' ',
+		E('small', { 'style': 'color:#999' },
+			_('trying for %s, %d attempt(s)').format(fmtDuration(trying), st.attempts || 0))
+	]);
+}
+
+/* Explains a tunnel that will not come up. Psiphon retries forever, so
+   without this the page would just say "Connecting..." indefinitely. */
+function troubleShooting(st) {
+	if (!st.running || st.connected) return null;
+
+	var trying = (st.started > 0 && st.now > 0) ? (st.now - st.started) : 0;
+	if (trying < 45) return null;
+
+	var title, body;
+
+	if (st.candidates === 0 || (st.candidates < 0 && !st.serverlist && trying > 90)) {
+		title = _('No Psiphon servers to try yet');
+		body = [
+			E('p', { 'style': 'margin:4px 0' },
+				_('Psiphon has not been able to obtain its server list, so it has nothing to connect to. The server list is downloaded on first use, and that download is often what gets blocked first.')),
+			E('ul', { 'style': 'margin:4px 0 4px 18px' }, [
+				E('li', {}, _('Set Upstream proxy (Advanced) to another proxy that currently works on this router, e.g. socks5://127.0.0.1:10808 - Psiphon will bootstrap through it.')),
+				E('li', {}, _('Or provide an embedded server list file (Advanced) copied from a working Psiphon installation.')),
+				E('li', {}, _('If the router has no internet at all, fix that first - check Network -> Interfaces.'))
+			])
+		];
+	} else {
+		title = _('Servers known, but no tunnel yet');
+		body = [
+			E('p', { 'style': 'margin:4px 0' },
+				_('Psiphon has %d candidate server(s) and keeps trying different servers and protocols. Under heavy filtering this can take several minutes, and it never gives up on its own.').format(st.candidates > 0 ? st.candidates : 0)),
+			E('ul', { 'style': 'margin:4px 0 4px 18px' }, [
+				E('li', {}, _('Leave Limit tunnel protocols empty so every obfuscation method may be tried.')),
+				E('li', {}, _('Set Egress country back to Auto if you forced a country.')),
+				E('li', {}, _('Use View notices to see what each attempt reports.')),
+				E('li', {}, _('If it still fails, set Upstream proxy (Advanced) to a proxy that works right now.'))
+			])
+		];
+	}
+
+	if (st.last_warning)
+		body.push(E('p', { 'style': 'margin:6px 0 0 0' }, [
+			E('strong', {}, _('Last message: ')), E('code', {}, st.last_warning)
+		]));
+
+	return E('div', {
+		'style': 'margin-top:12px;padding:10px 14px;border-left:3px solid #ef6c00;' +
+		         'background:rgba(239,108,0,.10);border-radius:4px;max-width:760px'
+	}, [ E('h4', { 'style': 'margin:0 0 6px 0' }, title) ].concat(body));
 }
 
 function row(label, id, value) {
@@ -136,6 +191,13 @@ function renderState(st) {
 		: '-');
 	set('opsiphon-boot', st.autostart ? _('Enabled') : _('Disabled'));
 	set('opsiphon-event', '%s %s'.format(st.last_event || '-', st.last_message || ''));
+
+	var box = document.getElementById('opsiphon-trouble');
+	if (box) {
+		while (box.firstChild) box.removeChild(box.firstChild);
+		var t = troubleShooting(st);
+		if (t) box.appendChild(t);
+	}
 
 	var c = document.getElementById('opsiphon-btn-connect'),
 	    d = document.getElementById('opsiphon-btn-disconnect');
@@ -280,6 +342,7 @@ return view.extend({
 				]),
 				E('div', { 'style': 'flex:0 1 420px;max-width:420px;width:100%;text-align:center' }, [ logo ])
 			]),
+			E('div', { 'id': 'opsiphon-trouble' }, []),
 			usageBox(socksPort, httpPort, listenIface)
 		]);
 
@@ -348,6 +411,20 @@ return view.extend({
 			_('Give up trying to build a tunnel after this many seconds and start over. 0 uses the Psiphon default.'));
 		o.datatype = 'uinteger';
 		o.default = '0';
+
+		o = s.taboption('advanced', form.Value, 'upstream_proxy', _('Upstream proxy'),
+			_('Send the tunnel itself through another proxy first, e.g. socks5://127.0.0.1:10808 or http://127.0.0.1:8118. Use this where Psiphon cannot even reach its own servers, but some other proxy on this router still works.'));
+		o.placeholder = 'socks5://127.0.0.1:10808';
+		o.rmempty = true;
+
+		o = s.taboption('advanced', form.Value, 'server_list_file', _('Embedded server list file'),
+			_('Path to a file with Psiphon server entries, e.g. /etc/opsiphon/server_list. With it the tunnel can start without downloading the remote server list first - useful when that download is blocked.'));
+		o.placeholder = '/etc/opsiphon/server_list';
+		o.rmempty = true;
+
+		o = s.taboption('advanced', form.Flag, 'diagnostics', _('Diagnostic notices'),
+			_('Let Psiphon report warnings, errors and candidate server counts. This is what fills in the explanation shown above when a tunnel will not establish. Turn it off only to make the log quieter.'));
+		o.default = '1';
 
 		o = s.taboption('advanced', form.MultiValue, 'protocols', _('Limit tunnel protocols'),
 			_('Restrict Psiphon to these obfuscation protocols. Leave everything unchecked to allow all of them (recommended - Psiphon picks what gets through).'));

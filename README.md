@@ -83,6 +83,9 @@ The panel refreshes every 3 seconds.
 | --- | --- |
 | **Data directory** | Where Psiphon stores its downloaded server list and datastore. Default `/etc/opsiphon/data` (survives reboots). Point it at a USB stick (e.g. `/mnt/sda1/opsiphon`) to reduce writes to the router flash. |
 | **Establish timeout (s)** | Give up on a connection attempt after N seconds and start over. `0` = Psiphon's own default. |
+| **Upstream proxy** | Sends the tunnel itself through another proxy first, e.g. `socks5://127.0.0.1:10808` or `http://127.0.0.1:8118`. This is the escape hatch for networks where Psiphon cannot even reach its own servers but some other proxy still works. |
+| **Embedded server list file** | Path to a file with Psiphon server entries (e.g. `/etc/opsiphon/server_list`). With it the tunnel can start without downloading the remote server list first — the download that is usually blocked first. |
+| **Diagnostic notices** | Lets Psiphon report warnings, errors and candidate server counts. Keep it on: it is what fills in the explanation shown on the status panel when a tunnel will not establish. |
 | **Limit tunnel protocols** | Restricts which obfuscation protocols Psiphon may use (`OSSH`, `QUIC-OSSH`, `FRONTED-MEEK-OSSH`, …). Leave all unchecked — Psiphon is designed to pick whatever gets through your network. Only useful for testing which protocol survives a particular filter. |
 | **Psiphon network** — *Sponsor ID*, *Propagation channel ID*, *Remote server list URL*, *Signature key* | These identify the client to the Psiphon network. The Sponsor / Propagation IDs tell Psiphon which server set and home page this client should get; the server list URL is where the client bootstraps its list of servers from, and the signature key is what proves that list is authentic. The defaults are the **public community values** published with the open source psiphon-tunnel-core. Change them only if Psiphon Inc. gave you a private sponsor configuration. |
 
@@ -107,7 +110,39 @@ bypass rules (for example, keeping local Iranian sites out of the tunnel).
 
 ---
 
-## 4. Command line
+## 4. When it will not connect
+
+Psiphon never gives up by itself: it keeps retrying servers and protocols
+forever. So the status stays on **Connecting…** (the badge turns red after two
+minutes) and the panel shows how long it has been trying and how many attempts
+it made. After 45 seconds an explanation box appears with the actual reason, in
+one of two shapes:
+
+**“No Psiphon servers to try yet”** — candidate servers is 0: Psiphon never
+managed to download its server list, so it has nothing to connect to. The list
+is fetched on first use and that fetch is usually the first thing a filter
+blocks. What the box tells you to do, in order:
+
+1. Set **Upstream proxy** (Advanced) to a proxy that works on this router right
+   now, e.g. `socks5://127.0.0.1:10808` from a running V2Ray/Xray client.
+   Psiphon bootstraps through it, and once it has servers it can usually stand
+   on its own.
+2. Or point **Embedded server list file** at server entries copied from a
+   working Psiphon installation, so no download is needed at all.
+3. If the router has no internet at all, fix that first (Network → Interfaces).
+
+**“Servers known, but no tunnel yet”** — Psiphon has servers and is cycling
+through them and through its obfuscation protocols; under heavy filtering this
+can take minutes. Leave *Limit tunnel protocols* empty, set *Egress country*
+back to Auto, and use **View notices** to watch what each attempt reports.
+
+Either way the last warning or error from Psiphon is shown under
+**Last message**, shortened to the part that matters, and the full history is in
+**View notices** (or `opsiphon-stat -l` over SSH).
+
+---
+
+## 5. Command line
 
 ```sh
 /etc/init.d/opsiphon start|stop|restart|status
@@ -124,7 +159,7 @@ to a UCI option of the same name.
 
 ---
 
-## 5. Building
+## 6. Building
 
 ### The Psiphon core
 
@@ -162,7 +197,7 @@ On a proper Linux build host the full SDK route also works:
 
 ---
 
-## 6. How it works
+## 7. How it works
 
 ```
 psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon/state
@@ -178,7 +213,7 @@ psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon
 
 ---
 
-## 7. Notes
+## 8. Notes
 
 * The default sponsor/propagation IDs are the public community values; the
   server pool is not identical to the official Psiphon apps.
