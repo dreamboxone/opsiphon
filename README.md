@@ -268,13 +268,23 @@ decision. The panel's buttons are:
 | Button | What it does |
 | --- | --- |
 | **Create / refresh node** | Writes the node above, matching the current SOCKS port. |
-| **Use as active node** | If PassWall2 has a shunt node, sets that node's `default_node` to Opsiphon (keeping your rules); otherwise sets it as the global node. |
+| **Use as active node** | If PassWall2 has a shunt node, sets that node's `default_node` to Opsiphon (keeping your rules); otherwise sets it as the global node. Also switches PassWall2's `localhost_proxy` off — see below. |
 | **Keep Iran traffic direct** | Sets the `Iran` shunt rule (`geosite:ir` + `geoip:ir`) to `_direct`, so Iranian sites and IPs bypass the tunnel, and points PassWall2's geo data at the Iran rule files. |
 | **Send Iran traffic through tunnel** | Puts that rule back to `_default`. |
 | **Remove node** | Deletes the node again and detaches it if it was active. |
 
 Every write makes a timestamped backup of `/etc/config/passwall2` in
 `/etc/opsiphon/backup` (the last 10 are kept).
+
+**Why *Use as active node* turns off `localhost_proxy`.** That PassWall2
+setting routes the router's own outbound traffic — and its own DNS — through
+the active node. The active node is now a SOCKS proxy that Psiphon serves on
+`127.0.0.1`, so Psiphon's own connections out to the Psiphon network would be
+redirected into Psiphon's own proxy, which cannot answer anything until the
+tunnel it is trying to build exists. The tunnel then never connects, and the
+only sign of it is a stream of `SOCKS proxy accept error` warnings. Your LAN
+clients are unaffected — `client_proxy` is the setting that covers them.
+**Remove node** puts `localhost_proxy` back the way it was.
 
 ### Iran routing rules
 

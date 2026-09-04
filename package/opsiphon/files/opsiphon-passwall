@@ -82,6 +82,37 @@ ensure_iran_rule() {
 	echo "Iran"
 }
 
+# PassWall2's "localhost_proxy" sends the router's OWN outbound traffic - and,
+# in the same nftables block, the router's own DNS - through the active node.
+# Our node is a SOCKS proxy that psiphon-tunnel-core serves on 127.0.0.1, so
+# with both switched on psiphon's connections to the Psiphon network are
+# redirected into psiphon's own proxy, which cannot answer until the tunnel it
+# is trying to build exists. The tunnel then never establishes, and the only
+# visible symptom is a stream of
+#
+#   SOCKS proxy accept error: socks5ReadCommand: ... command was 0x03, not 0x01
+#
+# Turn it off while our node is the one in use. LAN clients are unaffected -
+# client_proxy is what covers them. Remember that we changed it so deactivating
+# puts the user's setting back.
+LOCAL_PROXY_FLAG=opsiphon.config.pw_localhost_proxy_restore
+
+suspend_localhost_proxy() {
+	[ "$(uci -q get $PW.@global[0].localhost_proxy)" = "1" ] || return 0
+	uci -q set $PW.@global[0].localhost_proxy='0'
+	uci -q set "$LOCAL_PROXY_FLAG"='1'
+	uci -q commit opsiphon
+	echo "PassWall2: localhost_proxy off (it would loop the router's own traffic back into Psiphon)"
+}
+
+resume_localhost_proxy() {
+	[ "$(uci -q get $LOCAL_PROXY_FLAG)" = "1" ] || return 0
+	uci -q set $PW.@global[0].localhost_proxy='1'
+	uci -q delete "$LOCAL_PROXY_FLAG"
+	uci -q commit opsiphon
+	echo "PassWall2: localhost_proxy restored"
+}
+
 # fd 1000 is a procd lock when this is reached from an init script; the
 # daemons PassWall2 leaves behind must not inherit it - see opsiphon.init
 restart_pw() {
@@ -131,6 +162,7 @@ cmd_activate() {
 		uci -q set $PW.@global[0].node="$NODE"
 		echo "PassWall2 now uses $NODE directly"
 	fi
+	suspend_localhost_proxy
 	uci -q commit $PW
 	restart_pw
 }
@@ -179,6 +211,7 @@ cmd_remove() {
 	fi
 	[ "$(active_node)" = "$NODE" ] && uci -q delete $PW.@global[0].node
 	uci -q delete $PW.$NODE
+	resume_localhost_proxy
 	uci -q commit $PW
 	echo "node $NODE removed"
 	restart_pw
