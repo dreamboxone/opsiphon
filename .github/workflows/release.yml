@@ -48,17 +48,20 @@ jobs:
 
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: 'stable'
+          # the Go sources live in the psiphon-tunnel-core clone build-core.sh
+          # makes, not in this repository, so there is no go.sum here to cache
+          cache: false
 
       - name: Build the Psiphon core for ${{ matrix.name }}
         run: |
           set -euo pipefail
-          ./build/build-core.sh ${{ matrix.name }}
+          sh ./build/build-core.sh ${{ matrix.name }}
           ls -l prebuilt/${{ matrix.openwrt_arch }}/psiphon-tunnel-core
           file prebuilt/${{ matrix.openwrt_arch }}/psiphon-tunnel-core
 
@@ -90,7 +93,7 @@ jobs:
         run: |
           set -euo pipefail
           # run as root so the packaged files are owned by root:root
-          sudo -E ./build/build-apk.sh "${{ matrix.openwrt_arch }}" "$APK_BIN"
+          sudo -E sh ./build/build-apk.sh "${{ matrix.openwrt_arch }}" "$APK_BIN"
           ls -l dist/
 
       - name: Verify the packages
@@ -98,7 +101,9 @@ jobs:
           set -euo pipefail
           for f in dist/*.apk; do
             echo "== $f"
-            "$APK_BIN" adbdump "$f" | grep -E '^  (name|version|arch):'
+            # informational only - never fail the release over a formatting
+            # difference in a future apk version
+            "$APK_BIN" adbdump "$f" | grep -E '^[[:space:]]*(name|version|arch):' || true
           done
           # the core must be executable and the right architecture
           rm -rf verify && mkdir verify
@@ -107,7 +112,7 @@ jobs:
           file verify/usr/bin/psiphon-tunnel-core
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: opsiphon-${{ matrix.openwrt_arch }}
           path: dist/*.apk
@@ -118,10 +123,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Collect every architecture
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 

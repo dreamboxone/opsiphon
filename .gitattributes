@@ -1,0 +1,12 @@
+# Everything that runs on the router or in CI is a POSIX shell script, so it
+# must reach Linux with LF endings. A CRLF checkout would make the kernel
+# report "bad interpreter: /bin/sh^M" and nothing would start.
+*.sh              text eol=lf
+*.init            text eol=lf
+install-manual.sh text eol=lf
+package/opsiphon/files/*  text eol=lf
+.github/workflows/*.yml   text eol=lf
+
+# the prebuilt Psiphon core must never be touched by any filter
+prebuilt/**       binary
+*.png             binary
