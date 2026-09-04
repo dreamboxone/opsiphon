@@ -13,8 +13,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-opsiphon
-PKG_VERSION:=1.0.2
-PKG_RELEASE:=4
+PKG_VERSION:=1.0.3
+PKG_RELEASE:=1
 
 PKG_MAINTAINER:=routekernel <https://t.me/routekernel1>
 PKG_LICENSE:=GPL-3.0-only
@@ -33,7 +33,7 @@ endef
 
 define Package/luci-app-opsiphon/description
  Web interface for Opsiphon: connect / disconnect, live tunnel status,
- egress country selection, traffic statistics, boot autostart and the
+ country selection, traffic statistics, boot autostart and the
  Psiphon notice log - all from LuCI.
 endef
 

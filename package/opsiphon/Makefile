@@ -14,8 +14,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=opsiphon
-PKG_VERSION:=1.0.2
-PKG_RELEASE:=4
+PKG_VERSION:=1.0.3
+PKG_RELEASE:=1
 
 PKG_MAINTAINER:=routekernel <https://t.me/routekernel1>
 PKG_LICENSE:=GPL-3.0-only
@@ -40,7 +40,7 @@ define Package/opsiphon/description
  source psiphon-tunnel-core console client.
 
  Provides a procd service, UCI configuration, a local SOCKS5 and HTTP proxy,
- egress country selection and a live status / traffic statistics collector
+ country selection and a live status / traffic statistics collector
  that feeds luci-app-opsiphon.
 endef
 

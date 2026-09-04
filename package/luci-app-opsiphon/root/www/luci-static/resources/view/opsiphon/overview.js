@@ -12,7 +12,7 @@
 'require ui';
 'require uci';
 
-var OPSIPHON_VERSION = '1.0.2';
+var OPSIPHON_VERSION = '1.0.3';
 var OPSIPHON_TELEGRAM = 'https://t.me/routekernel1';
 var OPSIPHON_REPO = 'https://github.com/dreamboxone/opsiphon';
 
@@ -239,7 +239,7 @@ function troubleShooting(st) {
 				_('Psiphon has %d candidate server(s) and keeps trying servers and protocols. Under heavy filtering this can take minutes.').format(st.candidates > 0 ? st.candidates : 0)),
 			E('ul', { 'style': 'margin:4px 0 4px 18px' }, [
 				E('li', {}, _('Leave Limit tunnel protocols empty.')),
-				E('li', {}, _('Set Egress country back to Auto.')),
+				E('li', {}, _('Set Country back to Auto.')),
 				E('li', {}, _('Use View notices to see what each attempt reports.'))
 			])
 		];
@@ -516,7 +516,7 @@ return view.extend({
 			E('div', { 'style': 'display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start' }, [
 				E('div', { 'style': 'flex:1 1 420px;min-width:280px' }, [
 					row(_('Connection'), 'ops-state', stateBadge(st)),
-					row(_('Egress country'), 'ops-egress', '-'),
+					row(_('Country'), 'ops-egress', '-'),
 					row(_('Detected client country'), 'ops-client', '-'),
 					row(_('Connected for'), 'ops-uptime', '-'),
 					row(_('This session (down / up)'), 'ops-session', '-'),
@@ -579,7 +579,7 @@ return view.extend({
 			_('Re-open the tunnel automatically after the router reboots.'));
 		o.default = '1'; o.rmempty = false;
 
-		o = s.taboption('general', form.ListValue, 'region', _('Egress country'),
+		o = s.taboption('general', form.ListValue, 'region', _('Country'),
 			_('Country the traffic leaves the Psiphon network from. Auto lets Psiphon pick the fastest server.'));
 		o.value('', _('Auto (best available)'));
 		var seen = {};

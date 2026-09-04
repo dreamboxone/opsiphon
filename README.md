@@ -1,6 +1,6 @@
 # Opsiphon — Psiphon for OpenWrt (with LuCI GUI)
 
-**Version 1.0.2** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
+**Version 1.0.3** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
 🇮🇷 **[راهنمای فارسی: README.fa.md](README.fa.md)**
 
 Opsiphon runs the open source
@@ -96,7 +96,7 @@ to go back.
 | Field | Meaning |
 | --- | --- |
 | **Connection** | `Stopped` — service not running · `Connecting…` — running but no tunnel yet · `Connected` — tunnel is up |
-| **Egress country** | Country the traffic leaves the Psiphon network from — where sites think you are |
+| **Country** | Country the traffic leaves the Psiphon network from — where sites think you are |
 | **Detected client country** | Country Psiphon thinks *you* are in, as seen from its servers |
 | **Connected for** | How long the current tunnel has been up |
 | **Traffic (down / up)** | Bytes received / sent through the tunnel since it was started |
@@ -120,7 +120,7 @@ The panel refreshes every 3 seconds.
 | Option | What it does |
 | --- | --- |
 | **Start on boot** | Re-opens the tunnel automatically after a reboot. Only matters once you have connected at least once. |
-| **Egress country** | Forces the exit country. `Auto` (default) lets Psiphon choose the fastest server — leave it on Auto unless you need a specific country. The list is filled from the countries Psiphon actually reports as available. |
+| **Country** | Forces the exit country. `Auto` (default) lets Psiphon choose the fastest server — leave it on Auto unless you need a specific country. The list is filled from the countries Psiphon actually reports as available. |
 | **SOCKS5 port** | Port of the local SOCKS5 proxy (default `1080`). `0` disables it. |
 | **HTTP proxy port** | Port of the local HTTP proxy (default `8080`). `0` disables it. |
 | **Listen interface** | Empty = proxies are reachable only from the router itself (`127.0.0.1`). Set to `br-lan` to make them reachable from your LAN devices as `<router-ip>:1080`. |
@@ -182,7 +182,7 @@ blocks. What the box tells you to do, in order:
 
 **“Servers known, but no tunnel yet”** — Psiphon has servers and is cycling
 through them and through its obfuscation protocols; under heavy filtering this
-can take minutes. Leave *Limit tunnel protocols* empty, set *Egress country*
+can take minutes. Leave *Limit tunnel protocols* empty, set *Country*
 back to Auto, and use **View notices** to watch what each attempt reports.
 
 Either way the last warning or error from Psiphon is shown under
