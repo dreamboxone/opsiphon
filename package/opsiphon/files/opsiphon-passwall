@@ -128,12 +128,24 @@ restart_pw() {
 
 cmd_sync() {
 	installed || { echo "PassWall2 is not installed" >&2; exit 1; }
-	backup
 
 	local port addr
 	port="$(opsiphon_port)"
 	addr="$(opsiphon_addr)"
 
+	# This runs on every tunnel start, and restarting PassWall2 tears down its
+	# nftables ruleset and xray. Doing that while psiphon is bootstrapping
+	# pulls the network out from under it - every dial it has in flight comes
+	# back "connect: connection refused" - so touch nothing when the node is
+	# already what it should be, which is the usual case.
+	if [ "$(uci -q get $PW.$NODE.address)" = "$addr" ] &&
+	   [ "$(uci -q get $PW.$NODE.port)" = "$port" ] &&
+	   [ "$(uci -q get $PW.$NODE.protocol)" = "socks" ]; then
+		echo "node $NODE already points at $addr:$port"
+		return 0
+	fi
+
+	backup
 	uci -q set $PW.$NODE=nodes
 	uci -q set $PW.$NODE.remarks='Opsiphon (Psiphon)'
 	uci -q set $PW.$NODE.type='Xray'

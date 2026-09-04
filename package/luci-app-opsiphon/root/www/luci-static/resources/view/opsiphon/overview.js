@@ -637,13 +637,20 @@ return view.extend({
 		TUNNEL_PROTOCOLS.forEach(function(p) { o.value(p, p); });
 		o.rmempty = true;
 
+		/* Empty is the normal state for these three: the scripts behind them
+		   already carry the same defaults, so an empty setting means "use the
+		   built-in one". They were marked required with nothing to fall back
+		   on, which left the form permanently invalid and unsaveable. Show the
+		   default as a placeholder instead. */
 		o = s.taboption('advanced', form.Value, 'geoip_url', _('geoip.dat URL'),
-			_('Routing data carrying the geoip:ir category, fetched by the Iran routing rules panel.'));
-		o.rmempty = false;
+			_('Routing data carrying the geoip:ir category, fetched by the Iran routing rules panel. Leave empty for the default.'));
+		o.placeholder = 'https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geoip.dat';
+		o.rmempty = true;
 
 		o = s.taboption('advanced', form.Value, 'geosite_url', _('geosite.dat URL'),
-			_('Routing data carrying the geosite:ir category.'));
-		o.rmempty = false;
+			_('Routing data carrying the geosite:ir category. Leave empty for the default.'));
+		o.placeholder = 'https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat';
+		o.rmempty = true;
 
 		o = s.taboption('advanced', form.Value, 'asset_dir', _('Routing data directory'),
 			_('Where those files go when PassWall2 does not say otherwise.'));
@@ -660,8 +667,10 @@ return view.extend({
 		o = s.taboption('advanced', form.Value, 'propagation_id', _('Propagation channel ID'));
 		o.default = 'FFFFFFFFFFFFFFFF'; o.rmempty = false;
 
-		o = s.taboption('advanced', form.Value, 'server_list_url', _('Remote server list URL'));
-		o.rmempty = false;
+		o = s.taboption('advanced', form.Value, 'server_list_url', _('Remote server list URL'),
+			_('Where Psiphon fetches its server list. Leave empty for the default.'));
+		o.placeholder = 'https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed';
+		o.rmempty = true;
 
 		o = s.taboption('advanced', form.DynamicList, 'server_list_urls', _('Bootstrap mirrors'),
 			_('Locations to fetch the server list from, tried alongside the URL above. A fresh client has no servers until it downloads that list, and where the original location is blocked nothing can start - a reachable mirror fixes that. Safe by design: the list is RSA signed and verified with the key below, so a mirror can only serve an older copy, never a forged one.'));

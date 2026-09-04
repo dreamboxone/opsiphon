@@ -92,6 +92,14 @@ function shorten(m) {
 	return substr(m, 1, 90) " … " substr(m, length(m) - 59)
 }
 
+# The reason a dial failed is the last link of the call chain psiphon traces
+# through, e.g. ".../psiphon.tcpDial#312: dial tcp x: connect: connection
+# refused" -> "connection refused".
+function cause(msg,   n, parts) {
+	n = split(msg, parts, ": ")
+	return n > 0 ? parts[n] : msg
+}
+
 function logline(nt, msg) {
 	# epoch timestamp - LuCI formats it for display, and this avoids relying
 	# on strftime() being present in busybox awk
@@ -219,17 +227,35 @@ BEGIN {
 		logline(nt, sval("url"))
 	} else if (nt == "Alert" || nt == "Error" || nt == "Warning" || nt == "InternalError" || nt == "ServerAlert") {
 		msg = shorten(sval("message") sval("reason"))
-		logline(nt, msg)
 		if (noisy(msg)) {
 			# keep whatever the last meaningful event was
 			suppress = 1
+			# Log the first one and then stop: a blocked network produces
+			# hundreds of identical lines a minute, and 400 of them push
+			# every real event out of the ring buffer.
+			if (!(msg in seen_noisy)) {
+				seen_noisy[msg] = 1
+				logline(nt, msg " (further identical warnings not logged)")
+			}
 		} else {
+			logline(nt, msg)
 			last_message = msg
 			last_warning = nt ": " msg
 			important = 1
 		}
 	} else if (nt == "Info" || nt == "UserLog") {
-		logline(nt, sval("message"))
+		msg = sval("message")
+		if (index(msg, "Memory metrics") == 1) {
+			# heap counters, several per second - never useful here
+		} else if (index(msg, "failed to connect") == 1) {
+			# One per server tried, each carrying the whole call chain. The
+			# reason is the last link of it, and that is the part worth
+			# keeping: "connection refused" and "EOF" say very different
+			# things about what is in the way.
+			logline("Attempt failed", cause(msg))
+		} else if (!noisy(msg)) {
+			logline(nt, msg)
+		}
 	} else if (nt == "SocksProxyPortInUse" || nt == "HttpProxyPortInUse") {
 		last_message = nt " " nval("port")
 		important = 1
