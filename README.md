@@ -1,6 +1,6 @@
 # Opsiphon — Psiphon for OpenWrt (with LuCI GUI)
 
-**Version 1.0.1** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
+**Version 1.0.2** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
 🇮🇷 **[راهنمای فارسی: README.fa.md](README.fa.md)**
 
 Opsiphon runs the open source
@@ -37,6 +37,35 @@ Without packages:
 ```sh
 ./install-manual.sh root@192.168.1.1 arm_cortex-a7_neon-vfpv4
 ```
+
+### Uninstall
+
+```sh
+ssh root@192.168.1.1
+/usr/libexec/opsiphon-passwall remove     # only if you let it touch PassWall2
+/etc/init.d/opsiphon stop
+apk del luci-app-opsiphon opsiphon        # opkg remove ... on 24.10 and older
+```
+
+That removes the service, the core and the web page. Removing the packages
+deliberately leaves your settings behind, so reinstalling picks up where you
+left off. To erase those too:
+
+```sh
+rm -rf /etc/config/opsiphon /etc/opsiphon
+```
+
+`/etc/opsiphon` holds the Psiphon datastore, the traffic history
+(`usage.csv`) and the PassWall2 config backups, so delete it only when you
+really want a clean slate. Runtime state lives in `/var/run/opsiphon` and
+`/var/log/opsiphon` and disappears on reboot by itself.
+
+Two things are intentionally *not* touched, because they belong to other
+software: the `geoip.dat` / `geosite.dat` files under `/usr/share/v2ray`, and
+any PassWall2 setting other than the node — if you pressed *Keep Iran traffic
+direct*, that shunt rule stays as you set it. `/etc/opsiphon/backup` has a
+timestamped copy of `/etc/config/passwall2` from before each change if you want
+to go back.
 
 ---
 
@@ -142,7 +171,59 @@ Either way the last warning or error from Psiphon is shown under
 
 ---
 
-## 5. PassWall2, traffic history and Iran rules
+## 5. Bootstrapping where the server list is blocked
+
+A fresh Psiphon client knows no servers. It learns them by downloading a signed
+server list from `s3.amazonaws.com`, and in a heavily filtered network that
+download is usually the first thing to fail — leaving the tunnel stuck at
+*Connecting…* forever with zero candidate servers.
+
+Opsiphon handles this with **bootstrap mirrors**. The *Bootstrap mirrors*
+setting (Advanced tab, UCI `server_list_urls`) takes any number of locations for
+that same file; Psiphon treats them all as candidates and a blocked one simply
+loses out to a reachable one.
+
+This is safe by construction, and worth understanding before you trust a mirror:
+the server list is **RSA-signed by Psiphon**, and the client verifies that
+signature against `RemoteServerListSignaturePublicKey` in its own config. A
+mirror cannot forge or tamper with the list. The worst a stale mirror can do is
+serve an older copy.
+
+### The repository is the mirror
+
+`.github/workflows/mirror-bootstrap.yml` runs on GitHub's own runners, which can
+reach the original location, downloads the current server list four times a day
+and commits it to `mirror/server_list_compressed`. The shipped configuration
+already points at it:
+
+```
+list server_list_urls 'https://raw.githubusercontent.com/dreamboxone/opsiphon/master/mirror/server_list_compressed'
+list server_list_urls 'https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed'
+```
+
+So `raw.githubusercontent.com` — reachable from many networks where AWS is not —
+becomes the way in. Enable Actions once in the repository (Actions tab → enable
+workflows, then run *Mirror Psiphon bootstrap list* by hand for the first copy).
+
+If neither location is reachable from your router, the other two escape hatches
+still apply: an **Upstream proxy**, or an **Embedded server list file** (both in
+the Advanced tab, see section 4).
+
+### Releases are built by CI too
+
+`.github/workflows/release.yml` builds the Psiphon core from source with Go for
+four architectures (`arm_cortex-a7_neon-vfpv4`, `aarch64_cortex-a53`,
+`mipsel_24kc`, `x86_64`), packages both `.apk` files with the apk tool from an
+official OpenWrt SDK, verifies each one, and publishes them as a GitHub Release:
+
+```sh
+git push -u origin master        # first time
+git tag v1.0.2 && git push origin v1.0.2
+```
+
+---
+
+## 6. PassWall2, traffic history and Iran rules
 
 ### PassWall2 panel
 
@@ -206,7 +287,7 @@ prints the same numbers as JSON, and `opsiphon-usage reset` clears the history.
 
 ---
 
-## 6. Command line
+## 7. Command line
 
 ```sh
 /etc/init.d/opsiphon start|stop|restart|status
@@ -223,7 +304,7 @@ to a UCI option of the same name.
 
 ---
 
-## 7. Building
+## 8. Building
 
 ### The Psiphon core
 
@@ -261,7 +342,7 @@ On a proper Linux build host the full SDK route also works:
 
 ---
 
-## 8. How it works
+## 9. How it works
 
 ```
 psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon/state
@@ -277,7 +358,7 @@ psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon
 
 ---
 
-## 9. Notes
+## 10. Notes
 
 * The default sponsor/propagation IDs are the public community values; the
   server pool is not identical to the official Psiphon apps.

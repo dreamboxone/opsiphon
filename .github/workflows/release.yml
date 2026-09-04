@@ -1,0 +1,173 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
+# Build the Psiphon core from source and publish installable OpenWrt packages.
+#
+# Triggered by pushing a version tag:
+#
+#     git tag v1.0.1 && git push origin v1.0.1
+#
+# For every architecture below it cross compiles psiphon-tunnel-core with Go,
+# then packages opsiphon + luci-app-opsiphon with the apk tool from an official
+# OpenWrt SDK, and attaches the results to a GitHub Release.
+
+name: Build and release packages
+
+on:
+  push:
+    tags: [ 'v*' ]
+  workflow_dispatch:
+    inputs:
+      openwrt_release:
+        description: 'OpenWrt release to take the apk tool from'
+        default: '25.12.5'
+
+permissions:
+  contents: write
+
+env:
+  OPENWRT_RELEASE: '25.12.5'
+  SDK_TARGET: 'ipq40xx/generic'      # only the host apk tool is used from it
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: armv7      # ipq40xx, mvebu, most ARM routers
+            openwrt_arch: arm_cortex-a7_neon-vfpv4
+          - name: aarch64    # filogic, rockchip, newer ARM64 routers
+            openwrt_arch: aarch64_cortex-a53
+          - name: mipsel     # ramips / mt7621
+            openwrt_arch: mipsel_24kc
+          - name: x86_64     # x86 builds and VMs
+            openwrt_arch: x86_64
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build the Psiphon core for ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          ./build/build-core.sh ${{ matrix.name }}
+          ls -l prebuilt/${{ matrix.openwrt_arch }}/psiphon-tunnel-core
+          file prebuilt/${{ matrix.openwrt_arch }}/psiphon-tunnel-core
+
+      - name: Fetch the apk tool from an OpenWrt SDK
+        run: |
+          set -euo pipefail
+          rel="${{ github.event.inputs.openwrt_release || env.OPENWRT_RELEASE }}"
+          base="https://downloads.openwrt.org/releases/${rel}/targets/${SDK_TARGET}"
+
+          # the SDK filename carries the toolchain version, so discover it
+          name=$(curl -fsSL "$base/" \
+                 | grep -o 'openwrt-sdk-[^"]*\.Linux-x86_64\.tar\.\(xz\|zst\)' \
+                 | head -1)
+          [ -n "$name" ] || { echo "::error::no SDK found under $base"; exit 1; }
+          echo "SDK: $name"
+
+          curl -fsSL --retry 3 -o sdk.tar "$base/$name"
+          mkdir -p sdk
+          case "$name" in
+            *.zst) sudo apt-get update -qq && sudo apt-get install -y zstd
+                   tar --use-compress-program=unzstd -xf sdk.tar -C sdk --strip-components=1 ;;
+            *.xz)  tar -xJf sdk.tar -C sdk --strip-components=1 ;;
+          esac
+
+          echo "APK_BIN=$PWD/sdk/staging_dir/host/bin/apk" >> "$GITHUB_ENV"
+          "$PWD/sdk/staging_dir/host/bin/apk" --version
+
+      - name: Package for ${{ matrix.openwrt_arch }}
+        run: |
+          set -euo pipefail
+          # run as root so the packaged files are owned by root:root
+          sudo -E ./build/build-apk.sh "${{ matrix.openwrt_arch }}" "$APK_BIN"
+          ls -l dist/
+
+      - name: Verify the packages
+        run: |
+          set -euo pipefail
+          for f in dist/*.apk; do
+            echo "== $f"
+            "$APK_BIN" adbdump "$f" | grep -E '^  (name|version|arch):'
+          done
+          # the core must be executable and the right architecture
+          rm -rf verify && mkdir verify
+          "$APK_BIN" extract --destination verify --allow-untrusted --no-chown dist/opsiphon-*.apk
+          test -x verify/usr/bin/psiphon-tunnel-core
+          file verify/usr/bin/psiphon-tunnel-core
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: opsiphon-${{ matrix.openwrt_arch }}
+          path: dist/*.apk
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Collect every architecture
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Lay the files out for the release
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # one flat set of files, each named after its architecture
+          for dir in artifacts/opsiphon-*; do
+            arch="${dir#artifacts/opsiphon-}"
+            for f in "$dir"/*.apk; do
+              base=$(basename "$f" .apk)
+              case "$base" in
+                luci-app-*) cp -f "$f" "release/$base.apk" ;;   # noarch, one copy
+                *)          cp -f "$f" "release/$base.$arch.apk" ;;
+              esac
+            done
+          done
+          ls -l release/
+          (cd release && sha256sum *.apk > SHA256SUMS)
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+
+          cat > notes.md <<'NOTES'
+          Install on the router - pick the `opsiphon-` file matching your
+          router's architecture (`opkg print-architecture`, or `DISTRIB_ARCH`
+          in `/etc/openwrt_release`). The `luci-app-opsiphon` package is
+          architecture independent.
+
+          ```sh
+          scp opsiphon-*.apk luci-app-opsiphon-*.apk root@192.168.1.1:/tmp/
+          ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-app-opsiphon-*.apk'
+          ```
+
+          Then open LuCI, go to **Services -> Psiphon** and press **Connect**.
+          Nothing runs until you do.
+
+          Full guide: README.md (English), README.fa.md (فارسی).
+          NOTES
+          sed -i 's/^          //' notes.md
+
+          gh release create "$tag" release/* \
+            --title "Opsiphon $tag" \
+            --notes-file notes.md

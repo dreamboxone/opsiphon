@@ -40,8 +40,8 @@ fi
 ARCH="${1:-arm_cortex-a7_neon-vfpv4}"
 APK="${2:-$APK_BIN}"
 
-VERSION=1.0.1
-RELEASE=2
+VERSION=1.0.2
+RELEASE=1
 PKGVER="$VERSION-r$RELEASE"
 LICENSE="GPL-3.0-only"
 URL="https://github.com/dreamboxone/opsiphon"
@@ -211,10 +211,8 @@ install -m 0644 "$L/www/luci-static/resources/view/opsiphon/overview.js" \
 	"$I/www/luci-static/resources/view/opsiphon/overview.js"
 install -m 0644 "$L/www/luci-static/resources/view/opsiphon/logo.png" \
 	"$I/www/luci-static/resources/view/opsiphon/logo.png"
-sed "s/\"title\": \"Psiphon[^\"]*\"/\"title\": \"Psiphon $VERSION\"/" \
-	"$L/usr/share/luci/menu.d/luci-app-opsiphon.json" \
-	> "$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
-chmod 0644 "$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
+install -m 0644 "$L/usr/share/luci/menu.d/luci-app-opsiphon.json" \
+	"$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
 install -m 0644 "$L/usr/share/rpcd/acl.d/luci-app-opsiphon.json" \
 	"$I/usr/share/rpcd/acl.d/luci-app-opsiphon.json"
 

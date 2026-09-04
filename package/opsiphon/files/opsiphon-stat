@@ -29,7 +29,7 @@ human() {
 running=no
 pgrep -f "$(printf '%s' /usr/bin/psiphon-tunnel-core)" >/dev/null 2>&1 && running=yes
 
-echo "opsiphon 1.0.1"
+echo "opsiphon 1.0.2"
 echo "service running : $running"
 echo "enabled (uci)   : $(uci -q get opsiphon.config.enabled || echo 1)"
 echo "start on boot   : $(/etc/init.d/opsiphon enabled >/dev/null 2>&1 && echo yes || echo no)"

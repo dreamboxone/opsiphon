@@ -2,7 +2,7 @@
 
 # Opsiphon — سایفون برای OpenWrt (با رابط گرافیکی LuCI)
 
-**نسخه ۱.۰.۱** · پشتیبانی و تماس: [t.me/routekernel1](https://t.me/routekernel1)
+**نسخه ۱.۰.۲** · پشتیبانی و تماس: [t.me/routekernel1](https://t.me/routekernel1)
 🇬🇧 **[English guide: README.md](README.md)**
 
 Opsiphon کلاینت کنسولی متن‌باز
@@ -39,6 +39,34 @@ ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-ap
 ```sh
 ./install-manual.sh root@192.168.1.1 arm_cortex-a7_neon-vfpv4
 ```
+
+### حذف برنامه (Uninstall)
+
+```sh
+ssh root@192.168.1.1
+/usr/libexec/opsiphon-passwall remove     # فقط اگر اجازه داده بودی به PassWall2 دست بزند
+/etc/init.d/opsiphon stop
+apk del luci-app-opsiphon opsiphon        # روی ۲۴.۱۰ و قدیمی‌تر: opkg remove ...
+```
+
+این کار سرویس، هسته و صفحه‌ی وب را برمی‌دارد. حذف پکیج‌ها عمداً تنظیمات تو را
+نگه می‌دارد تا اگر دوباره نصب کردی از همان‌جا ادامه بدهی. اگر آن‌ها را هم
+می‌خواهی پاک کنی:
+
+```sh
+rm -rf /etc/config/opsiphon /etc/opsiphon
+```
+
+در `/etc/opsiphon` دیتابیس سایفون، تاریخچه‌ی مصرف (`usage.csv`) و نسخه‌های
+پشتیبان کانفیگ PassWall2 نگهداری می‌شود، پس فقط وقتی پاکش کن که واقعاً بخواهی
+همه‌چیز از صفر شود. وضعیت موقت هم در `/var/run/opsiphon` و `/var/log/opsiphon`
+است که با ریبوت خودش می‌رود.
+
+دو چیز عمداً دست‌نخورده می‌ماند، چون مال نرم‌افزار دیگری است: فایل‌های
+`geoip.dat` و `geosite.dat` در `/usr/share/v2ray`، و هر تنظیم دیگر PassWall2
+غیر از نود — یعنی اگر دکمه‌ی *Keep Iran traffic direct* را زده باشی، آن قانون
+همان‌طور که تنظیم شده باقی می‌ماند. در `/etc/opsiphon/backup` هم از قبلِ هر
+تغییر، یک نسخه‌ی زمان‌دار از `/etc/config/passwall2` هست که اگر خواستی برگردی.
 
 ---
 
@@ -146,7 +174,58 @@ ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-ap
 
 ---
 
-## ۵) PassWall2، آمار مصرف و قوانین ایران
+## ۵) وقتی خودِ لیست سرورها فیلتر است (بوت‌استرپ)
+
+یک کلاینت تازه‌نصب سایفون هیچ سروری نمی‌شناسد. سرورها را با دانلود یک فایل
+لیست امضاشده از `s3.amazonaws.com` یاد می‌گیرد، و در شبکه‌ی به‌شدت فیلترشده
+معمولاً همین دانلود اولین چیزی است که می‌شکند — نتیجه‌اش تونلی است که تا ابد
+روی *Connecting…* می‌ماند و صفر سرور کاندید دارد.
+
+راه‌حل Opsiphon **آینه‌های بوت‌استرپ** است. گزینه‌ی *Bootstrap mirrors* (تب
+Advanced، در UCI: `server_list_urls`) هر تعداد آدرس برای همان فایل می‌گیرد؛
+سایفون همه را کاندید می‌داند و آدرس بسته‌شده عملاً کنار می‌رود.
+
+این کار ذاتاً امن است و بهتر است دلیلش را بدانی: آن لیست **با کلید RSA توسط
+سایفون امضا شده** و کلاینت امضا را با `RemoteServerListSignaturePublicKey` که
+در کانفیگ خودش دارد بررسی می‌کند. پس یک آینه نمی‌تواند لیست جعلی بدهد یا
+دستکاری‌اش کند؛ بدترین کاری که یک آینه‌ی قدیمی می‌کند این است که نسخه‌ی
+قدیمی‌تر بدهد.
+
+### خودِ ریپازیتوری، آینه است
+
+فایل `.github/workflows/mirror-bootstrap.yml` روی سرورهای خود گیت‌هاب اجرا
+می‌شود — که به آدرس اصلی دسترسی دارند — روزی چهار بار لیست سرورها را دانلود
+می‌کند و در `mirror/server_list_compressed` کامیت می‌کند. کانفیگ پیش‌فرض هم از
+قبل به همان اشاره می‌کند:
+
+```
+list server_list_urls 'https://raw.githubusercontent.com/dreamboxone/opsiphon/master/mirror/server_list_compressed'
+list server_list_urls 'https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed'
+```
+
+یعنی `raw.githubusercontent.com` — که در خیلی از شبکه‌هایی که AWS بسته است هنوز
+باز است — می‌شود راه ورود. کافی است یک‌بار در ریپازیتوری Actions را فعال کنی
+(تب Actions → فعال‌سازی، و بعد یک‌بار دستی *Mirror Psiphon bootstrap list* را
+اجرا کن تا اولین نسخه ساخته شود).
+
+اگر هیچ‌کدام از این دو آدرس هم از روتر تو در دسترس نبود، همان دو راه فرار بخش
+قبل سر جایش است: **Upstream proxy** یا **Embedded server list file**.
+
+### انتشار نسخه‌ها هم خودکار است
+
+فایل `.github/workflows/release.yml` هسته‌ی سایفون را با Go برای چهار معماری
+(`arm_cortex-a7_neon-vfpv4`، `aarch64_cortex-a53`، `mipsel_24kc`، `x86_64`) از
+سورس می‌سازد، هر دو پکیج `.apk` را با ابزار apk از SDK رسمی OpenWrt بسته‌بندی
+و بررسی می‌کند و به‌صورت GitHub Release منتشر می‌کند:
+
+```sh
+git push -u origin master        # بار اول
+git tag v1.0.2 && git push origin v1.0.2
+```
+
+---
+
+## ۶) PassWall2، آمار مصرف و قوانین ایران
 
 ### پنل PassWall2
 
@@ -211,7 +290,7 @@ config nodes 'opsiphon'
 
 ---
 
-## ۶) خط فرمان
+## ۷) خط فرمان
 
 ```sh
 /etc/init.d/opsiphon start|stop|restart|status
@@ -228,7 +307,7 @@ uci commit opsiphon
 
 ---
 
-## ۷) بیلد کردن
+## ۸) بیلد کردن
 
 ### هسته سایفون
 
@@ -266,7 +345,7 @@ OpenWrt روی فایل‌سیستم غیرحساس‌به‌حروف (مثل د
 
 ---
 
-## ۸) معماری داخلی
+## ۹) معماری داخلی
 
 ```
 psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon/state
@@ -283,7 +362,7 @@ psiphon-tunnel-core  --stderr-->  opsiphon-notices (awk)  -->  /var/run/opsiphon
 
 ---
 
-## ۹) نکته‌ها
+## ۱۰) نکته‌ها
 
 * شناسه‌های پیش‌فرض، مقادیر عمومی متن‌باز هستند؛ مجموعه سرورها دقیقاً همان
   چیزی نیست که اپ‌های رسمی سایفون می‌گیرند.

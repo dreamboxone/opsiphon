@@ -17,6 +17,34 @@ json_escape() {
 	printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037'
 }
 
+# psiphon expects TransferURL.URL to be base64 encoded ("slightly obfuscated
+# ... to mitigate trivial binary executable string scanning")
+b64() {
+	if command -v base64 >/dev/null 2>&1; then
+		printf '%s' "$1" | base64 | tr -d '\n'
+	elif command -v openssl >/dev/null 2>&1; then
+		printf '%s' "$1" | openssl base64 -A
+	fi
+}
+
+SERVER_LIST_URLS=""
+SERVER_LIST_SEEN=""
+add_server_list_url() {
+	local u="$1" enc
+	[ -n "$u" ] || return 0
+	# the same mirror may be named twice (list plus primary URL); psiphon
+	# would then weight it double when picking a candidate
+	case " $SERVER_LIST_SEEN " in *" $u "*) return 0 ;; esac
+	SERVER_LIST_SEEN="$SERVER_LIST_SEEN $u"
+	enc="$(b64 "$u")"
+	[ -n "$enc" ] || return 0
+	if [ -n "$SERVER_LIST_URLS" ]; then
+		SERVER_LIST_URLS="$SERVER_LIST_URLS, {\"URL\": \"$enc\"}"
+	else
+		SERVER_LIST_URLS="{\"URL\": \"$enc\"}"
+	fi
+}
+
 PROTOCOLS=""
 add_protocol() {
 	local p="$1"
@@ -62,10 +90,28 @@ config_get server_list_key  config server_list_key "${l_server_list_key:-$DEFAUL
 
 [ -n "$server_list_key" ] || server_list_key="$DEFAULT_SERVER_LIST_KEY"
 
+# Bootstrap mirrors. A fresh client has no servers until it downloads the
+# remote server list, and the default location is unreachable from some
+# networks - so any number of mirrors may be given. This is safe: the list is
+# RSA signed and verified against the key above, so a mirror cannot forge it.
+config_list_foreach config server_list_urls add_server_list_url
+if [ -z "$SERVER_LIST_URLS" ]; then
+	config_get urls_opt config server_list_urls ''
+	for u in $urls_opt; do add_server_list_url "$u"; done
+fi
+# the primary URL is always a candidate as well
+[ -n "$SERVER_LIST_URLS" ] && add_server_list_url "$server_list_url"
+
 printf '{\n'
 printf '  "PropagationChannelId": "%s",\n' "$(json_escape "$propagation_id")"
 printf '  "SponsorId": "%s",\n'            "$(json_escape "$sponsor_id")"
-printf '  "RemoteServerListUrl": "%s",\n'  "$(json_escape "$server_list_url")"
+if [ -n "$SERVER_LIST_URLS" ]; then
+	# RemoteServerListURLs supersedes RemoteServerListUrl; every entry is a
+	# candidate from the first attempt, so a blocked mirror simply loses out
+	printf '  "RemoteServerListURLs": [%s],\n' "$SERVER_LIST_URLS"
+else
+	printf '  "RemoteServerListUrl": "%s",\n'  "$(json_escape "$server_list_url")"
+fi
 printf '  "RemoteServerListDownloadFilename": "remote_server_list",\n'
 printf '  "RemoteServerListSignaturePublicKey": "%s",\n' "$(json_escape "$server_list_key")"
 printf '  "DataRootDirectory": "%s",\n'    "$(json_escape "$data_dir")"

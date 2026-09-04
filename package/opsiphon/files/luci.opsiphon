@@ -54,7 +54,7 @@ method_state() {
 	/etc/init.d/opsiphon enabled >/dev/null 2>&1 && autostart=1
 
 	json_init
-	json_add_string "version" "1.0.1"
+	json_add_string "version" "1.0.2"
 	json_add_string "core_rev" "$(core_version)"
 	json_add_boolean "running" "$running"
 	json_add_boolean "connected" "$connected"

@@ -12,7 +12,7 @@
 'require ui';
 'require uci';
 
-var OPSIPHON_VERSION = '1.0.1';
+var OPSIPHON_VERSION = '1.0.2';
 var OPSIPHON_TELEGRAM = 'https://t.me/routekernel1';
 var OPSIPHON_REPO = 'https://github.com/dreamboxone/opsiphon';
 
@@ -654,6 +654,11 @@ return view.extend({
 
 		o = s.taboption('advanced', form.Value, 'server_list_url', _('Remote server list URL'));
 		o.rmempty = false;
+
+		o = s.taboption('advanced', form.DynamicList, 'server_list_urls', _('Bootstrap mirrors'),
+			_('Locations to fetch the server list from, tried alongside the URL above. A fresh client has no servers until it downloads that list, and where the original location is blocked nothing can start - a reachable mirror fixes that. Safe by design: the list is RSA signed and verified with the key below, so a mirror can only serve an older copy, never a forged one.'));
+		o.placeholder = 'https://raw.githubusercontent.com/…/mirror/server_list_compressed';
+		o.rmempty = true;
 
 		o = s.taboption('advanced', form.TextValue, 'server_list_key', _('Remote server list signature key'),
 			_('Empty = built-in community key.'));

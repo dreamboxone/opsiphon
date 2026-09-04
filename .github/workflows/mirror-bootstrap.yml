@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright (C) 2026 dreamboxone <https://t.me/routekernel1>
+# Part of opsiphon - Psiphon for OpenWrt - https://github.com/dreamboxone/opsiphon
+#
+# Mirror the Psiphon bootstrap server list into this repository.
+#
+# Why: a fresh Psiphon client has no servers until it downloads the remote
+# server list, and that download (s3.amazonaws.com) is normally unreachable
+# from Iran - so the tunnel can never start. GitHub's runners can reach it, and
+# raw.githubusercontent.com is usually reachable from Iran, so this workflow
+# turns the repository into a bootstrap mirror.
+#
+# This is safe: the server list is RSA-signed by Psiphon and the client
+# verifies that signature with the public key in its own config
+# (RemoteServerListSignaturePublicKey). A mirror - this one included - cannot
+# forge or tamper with the list; the worst it can do is serve an old copy.
+#
+# The router is pointed at the mirrored file through the "Bootstrap mirrors"
+# setting (UCI: server_list_urls).
+
+name: Mirror Psiphon bootstrap list
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'      # four times a day
+  workflow_dispatch:            # and on demand from the Actions tab
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Download the current server list
+        run: |
+          set -euo pipefail
+          mkdir -p mirror
+          URL="https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed"
+
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 120 \
+               -o mirror/server_list_compressed.new "$URL"
+
+          size=$(wc -c < mirror/server_list_compressed.new)
+          echo "downloaded $size bytes"
+          # a signed list is far bigger than this; anything smaller is an
+          # error page or a truncated transfer and must not be published
+          if [ "$size" -lt 10000 ]; then
+            echo "::error::downloaded file is too small ($size bytes) - not publishing"
+            exit 1
+          fi
+
+          mv -f mirror/server_list_compressed.new mirror/server_list_compressed
+
+      - name: Record when it was mirrored
+        run: |
+          {
+            echo "source: https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed"
+            echo "mirrored: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "size: $(wc -c < mirror/server_list_compressed) bytes"
+            echo "sha256: $(sha256sum mirror/server_list_compressed | cut -d' ' -f1)"
+            echo
+            echo "The list is RSA-signed by Psiphon and verified by the client,"
+            echo "so this mirror cannot alter it."
+          } > mirror/README.txt
+
+      - name: Commit when the list changed
+        run: |
+          set -eu
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git diff --quiet -- mirror/server_list_compressed; then
+            echo "server list unchanged - nothing to commit"
+            exit 0
+          fi
+
+          git add mirror/server_list_compressed mirror/README.txt
+          git commit \
+            -m "mirror: refresh Psiphon bootstrap server list" \
+            -m "Automated by .github/workflows/mirror-bootstrap.yml"
+          git push
