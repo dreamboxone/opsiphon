@@ -11,18 +11,38 @@ Opsiphon کلاینت کنسولی متن‌باز
 یعنی تونل را به‌جای خط فرمان از رابط وب روتر روشن می‌کنی، وضعیتش را می‌بینی و
 تنظیمش می‌کنی.
 
-ساخته‌شده برای **OpenWrt 25.12**، تارگت `ipq40xx/chromium` و معماری
-`arm_cortex-a7_neon-vfpv4`. اسکریپت‌های بیلد معماری‌های دیگر را هم پوشش می‌دهند.
+روی **OpenWrt 25.12** توسعه داده شده، تارگت `ipq40xx/chromium` و معماری
+`arm_cortex-a7_neon-vfpv4`. ریلیزها بستهٔ `.ipk` برای **۲۴.۱۰ و ۲۳.۰۵** را هم
+دارند و چهار معماری را پوشش می‌دهند؛ اسکریپت‌های بیلد بیشتر از این را.
 
 ---
 
 ## ۱) نصب
 
-پکیج‌های آماده در پوشه `dist/` هستند:
+چون OpenWrt در نسخه ۲۵.۱۲ مدیر بسته را عوض کرد، هر ریلیز **هر دو فرمت** را
+دارد. جفتی را بردار که با روتر تو می‌خواند:
+
+| نسخه OpenWrt تو | مدیر بسته | این دو فایل را بگیر |
+|---|---|---|
+| ۲۵.۱۲ و بالاتر | `apk` | `opsiphon-<version>.<arch>.apk` و `luci-app-opsiphon-<version>.apk` |
+| ۲۴.۱۰ و ۲۳.۰۵ | `opkg` | `opsiphon_<version>_<arch>.ipk` و `luci-app-opsiphon_<version>_all.ipk` |
+
+معماری روتر همان `DISTRIB_ARCH` در فایل `/etc/openwrt_release` است (روی ۲۳.۰۵
+و ۲۴.۱۰ دستور `opkg print-architecture` هم همان را چاپ می‌کند). بسته
+`luci-app-opsiphon` مستقل از معماری است — یک فایل روی همه روترها کار می‌کند.
+
+**روی OpenWrt ۲۵.۱۲ و بالاتر:**
 
 ```sh
-scp dist/*.apk root@192.168.1.1:/tmp/
+scp opsiphon-*.apk luci-app-opsiphon-*.apk root@192.168.1.1:/tmp/
 ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-app-opsiphon-*.apk'
+```
+
+**روی OpenWrt ۲۴.۱۰ و ۲۳.۰۵:**
+
+```sh
+scp opsiphon_*.ipk luci-app-opsiphon_*.ipk root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 'opkg update && opkg install /tmp/opsiphon_*.ipk /tmp/luci-app-opsiphon_*.ipk'
 ```
 
 بعد در LuCI برو به **Services → Psiphon**.
@@ -34,7 +54,7 @@ ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-ap
 پیش‌نیازها (`jshn`، `libubox`، `luci-base`) بخشی از نصب معمولی OpenWrt + LuCI
 هستند، پس برای نصب نیازی به اینترنت نیست.
 
-نصب بدون پکیج:
+نصب بدون پکیج، روی هر نسخه‌ای:
 
 ```sh
 ./install-manual.sh root@192.168.1.1 arm_cortex-a7_neon-vfpv4
@@ -215,8 +235,10 @@ list server_list_urls 'https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/serve
 
 فایل `.github/workflows/release.yml` هسته‌ی سایفون را با Go برای چهار معماری
 (`arm_cortex-a7_neon-vfpv4`، `aarch64_cortex-a53`، `mipsel_24kc`، `x86_64`) از
-سورس می‌سازد، هر دو پکیج `.apk` را با ابزار apk از SDK رسمی OpenWrt بسته‌بندی
-و بررسی می‌کند و به‌صورت GitHub Release منتشر می‌کند:
+سورس می‌سازد، هر معماری را دو بار بسته‌بندی می‌کند — `.apk` با ابزار apk از
+SDK رسمی OpenWrt و `.ipk` با `build-ipk.sh` — بررسی می‌کند که هر دو فرمت واقعاً
+دقیقاً یک درخت فایل با هستهٔ اجراپذیر دارند، و همه را به‌صورت GitHub Release
+منتشر می‌کند:
 
 ```sh
 git push -u origin master        # بار اول
@@ -325,17 +347,32 @@ uci commit opsiphon
 
 ### پکیج‌ها
 
+برای OpenWrt ۲۵.۱۲ و بالاتر (`.apk`):
+
 ```sh
 ./build/build-apk.sh arm_cortex-a7_neon-vfpv4 \
     ~/openwrt-sdk-25.12.5-*/staging_dir/host/bin/apk
 ```
 
-این اسکریپت دقیقاً همان مراحلی را انجام می‌دهد که `include/package-pack.mk`
+برای ۲۴.۱۰ و ۲۳.۰۵ (`.ipk`) — بدون نیاز به SDK و بدون ابزار apk:
+
+```sh
+./build/build-ipk.sh arm_cortex-a7_neon-vfpv4
+```
+
+`build-apk.sh` دقیقاً همان مراحلی را انجام می‌دهد که `include/package-pack.mk`
 برای APK انجام می‌دهد (لیست فایل‌ها، conffiles با sha256، اسکریپت‌های نصب و
-حذف) و بعد `apk mkpkg` را صدا می‌زند. چون چیزی کامپایل نمی‌شود، فقط به ابزار
-`apk` از هر SDK نسخه ۲۵.۱۲ نیاز دارد — که کاربردی است، چون سیستم build کامل
-OpenWrt روی فایل‌سیستم غیرحساس‌به‌حروف (مثل درایو ویندوز) اجرا نمی‌شود. آن را
-با کاربر root اجرا کن تا مالکیت فایل‌های داخل پکیج `root:root` شود.
+حذف) و بعد `apk mkpkg` را صدا می‌زند. `build-ipk.sh` معادل همان کار را برای
+opkg می‌کند و همان تاربال `debian-binary` + `data.tar.gz` + `control.tar.gz`
+را می‌سازد که `scripts/ipkg-build` در سورس OpenWrt می‌سازد. در هیچ‌کدام چیزی
+کامپایل نمی‌شود؛ مسیر apk فقط به ابزار `apk` از هر SDK نسخه ۲۵.۱۲ نیاز دارد و
+مسیر ipk به هیچ چیز جز tar و gzip — که کاربردی است، چون سیستم build کامل
+OpenWrt روی فایل‌سیستم غیرحساس‌به‌حروف (مثل درایو ویندوز) اجرا نمی‌شود. هر دو
+را با کاربر root اجرا کن تا مالکیت فایل‌های داخل پکیج `root:root` شود.
+
+هر دو لیست فایل‌هایشان را از `build/packages.inc.sh` می‌خوانند، پس دو فرمت
+هیچ‌وقت از هم دور نمی‌افتند؛ CI در هر بیلد این را ثابت می‌کند: درخت فایل را از
+دل هر دو پکیج بیرون می‌کشد و با هم diff می‌گیرد.
 
 روی یک ماشین لینوکسی واقعی، مسیر SDK کامل هم کار می‌کند:
 

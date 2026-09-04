@@ -92,8 +92,11 @@ jobs:
       - name: Package for ${{ matrix.openwrt_arch }}
         run: |
           set -euo pipefail
-          # run as root so the packaged files are owned by root:root
+          # run as root so the packaged files are owned by root:root.
+          # .apk is for OpenWrt 25.12 and later, .ipk for 23.05 and 24.10 -
+          # both take their file lists from build/packages.inc.sh
           sudo -E sh ./build/build-apk.sh "${{ matrix.openwrt_arch }}" "$APK_BIN"
+          sudo -E sh ./build/build-ipk.sh "${{ matrix.openwrt_arch }}"
           ls -l dist/
 
       - name: Verify the packages
@@ -105,17 +108,44 @@ jobs:
             # difference in a future apk version
             "$APK_BIN" adbdump "$f" | grep -E '^[[:space:]]*(name|version|arch):' || true
           done
-          # the core must be executable and the right architecture
-          rm -rf verify && mkdir verify
-          "$APK_BIN" extract --destination verify --allow-untrusted --no-chown dist/opsiphon-*.apk
-          test -x verify/usr/bin/psiphon-tunnel-core
-          file verify/usr/bin/psiphon-tunnel-core
+
+          rm -rf verify && mkdir -p verify/apk verify/ipk
+
+          # the core must be executable and the right architecture, in both
+          # package formats - shipping it 0644 is exactly the mistake that
+          # makes a package install cleanly and then do nothing
+          "$APK_BIN" extract --destination verify/apk --allow-untrusted --no-chown dist/opsiphon-*.apk
+          test -x verify/apk/usr/bin/psiphon-tunnel-core
+          file verify/apk/usr/bin/psiphon-tunnel-core
+
+          tar -xzf dist/opsiphon_*_${{ matrix.openwrt_arch }}.ipk -C verify/ipk
+          test "$(cat verify/ipk/debian-binary)" = "2.0"
+          mkdir verify/ipk/data verify/ipk/control
+          tar -xzf verify/ipk/data.tar.gz    -C verify/ipk/data
+          tar -xzf verify/ipk/control.tar.gz -C verify/ipk/control
+          test -x verify/ipk/data/usr/bin/psiphon-tunnel-core
+          file verify/ipk/data/usr/bin/psiphon-tunnel-core
+          echo "== ipk control"
+          cat verify/ipk/control/control
+          grep -qx "Architecture: ${{ matrix.openwrt_arch }}" verify/ipk/control/control
+          test -x verify/ipk/control/postinst
+          test -x verify/ipk/control/prerm
+
+          # the two formats must ship the same tree. The file lists live in
+          # one place so they cannot drift; this is what proves it. Only the
+          # apk carries lib/apk metadata - opkg writes its own at install time
+          ( cd verify/apk      && find . -type f -o -type l ) | grep -v '^\./lib/apk/' | sort > apk.list
+          ( cd verify/ipk/data && find . -type f -o -type l ) | sort > ipk.list
+          diff apk.list ipk.list
+          echo "== both formats ship $(wc -l < ipk.list) identical paths"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
         with:
           name: opsiphon-${{ matrix.openwrt_arch }}
-          path: dist/*.apk
+          path: |
+            dist/*.apk
+            dist/*.ipk
 
   release:
     needs: build
@@ -134,19 +164,28 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          # one flat set of files, each named after its architecture
           for dir in artifacts/opsiphon-*; do
             arch="${dir#artifacts/opsiphon-}"
+            # .apk filenames carry no architecture, so add one. The LuCI
+            # package is architecture independent and identical in every
+            # job, so one copy of it is enough.
             for f in "$dir"/*.apk; do
+              [ -e "$f" ] || continue
               base=$(basename "$f" .apk)
               case "$base" in
-                luci-app-*) cp -f "$f" "release/$base.apk" ;;   # noarch, one copy
+                luci-app-*) cp -f "$f" "release/$base.apk" ;;
                 *)          cp -f "$f" "release/$base.$arch.apk" ;;
               esac
             done
+            # .ipk filenames already carry it, in opkg's own
+            # <name>_<version>_<arch> form, so keep them as they are
+            for f in "$dir"/*.ipk; do
+              [ -e "$f" ] || continue
+              cp -f "$f" "release/$(basename "$f")"
+            done
           done
           ls -l release/
-          (cd release && sha256sum *.apk > SHA256SUMS)
+          (cd release && sha256sum *.apk *.ipk > SHA256SUMS)
 
       - name: Publish the release
         env:
@@ -156,18 +195,38 @@ jobs:
           tag="${GITHUB_REF_NAME}"
 
           cat > notes.md <<'NOTES'
-          Install on the router - pick the `opsiphon-` file matching your
-          router's architecture (`opkg print-architecture`, or `DISTRIB_ARCH`
-          in `/etc/openwrt_release`). The `luci-app-opsiphon` package is
-          architecture independent.
+          ### Which files do I need?
+
+          Two, and both must match your OpenWrt release:
+
+          | Your OpenWrt | Package manager | Take these |
+          |---|---|---|
+          | 25.12 and later | `apk` | `opsiphon-*.<arch>.apk` + `luci-app-opsiphon-*.apk` |
+          | 24.10, 23.05 | `opkg` | `opsiphon_*_<arch>.ipk` + `luci-app-opsiphon_*_all.ipk` |
+
+          Find your architecture with `opkg print-architecture` on 23.05 and
+          24.10, or read `DISTRIB_ARCH` from `/etc/openwrt_release` on any
+          release. The `luci-app-opsiphon` package is architecture
+          independent - the same file works everywhere.
+
+          ### Install - OpenWrt 25.12 and later
 
           ```sh
           scp opsiphon-*.apk luci-app-opsiphon-*.apk root@192.168.1.1:/tmp/
           ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-app-opsiphon-*.apk'
           ```
 
+          ### Install - OpenWrt 24.10 and 23.05
+
+          ```sh
+          scp opsiphon_*.ipk luci-app-opsiphon_*.ipk root@192.168.1.1:/tmp/
+          ssh root@192.168.1.1 'opkg update && opkg install /tmp/opsiphon_*.ipk /tmp/luci-app-opsiphon_*.ipk'
+          ```
+
           Then open LuCI, go to **Services -> Psiphon** and press **Connect**.
           Nothing runs until you do.
+
+          `SHA256SUMS` covers every file above.
 
           Full guide: README.md (English), README.fa.md (فارسی).
           NOTES

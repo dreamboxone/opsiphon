@@ -7,6 +7,10 @@
 # build-apk.sh - build installable OpenWrt 25.12 .apk packages for opsiphon
 # and luci-app-opsiphon, without running the OpenWrt make system.
 #
+# For OpenWrt 23.05 and 24.10, which use opkg rather than apk, use the
+# sibling script build-ipk.sh instead. Both take their file lists from
+# packages.inc.sh, so the two formats always ship the same tree.
+#
 #
 # Why this exists: neither package compiles anything (the Psiphon core is a
 # prebuilt static Go binary, the LuCI app is plain JS/JSON), so the only thing
@@ -40,14 +44,9 @@ fi
 ARCH="${1:-arm_cortex-a7_neon-vfpv4}"
 APK="${2:-$APK_BIN}"
 
-VERSION=1.0.2
-RELEASE=2
-PKGVER="$VERSION-r$RELEASE"
-LICENSE="GPL-3.0-only"
-URL="https://github.com/dreamboxone/opsiphon"
-MAINTAINER="routekernel <https://t.me/routekernel1>"
-
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+. "$ROOT/build/packages.inc.sh"
+
 # The staging tree must live on a real Linux filesystem: package files have to
 # end up root:root with proper modes, which a mounted Windows folder cannot
 # represent (even under fakeroot). Override with OPSIPHON_WORK if needed.
@@ -90,16 +89,7 @@ finalize() {
 	adir="$WORK/admin-$name"
 	mkdir -p "$idir/lib/apk/packages" "$adir"
 
-	# root:root, dirs 0755, data 0644, programs 0755
-	find "$idir" -type d -exec chmod 0755 {} +
-	find "$idir" -type f -exec chmod 0644 {} +
-	# anything that is meant to be run must be executable - derive that from
-	# where it lives instead of listing files, so a new helper cannot be
-	# shipped non-executable by accident
-	for d in usr/bin usr/sbin etc/init.d usr/libexec usr/libexec/rpcd; do
-		[ -d "$idir/$d" ] && find "$idir/$d" -maxdepth 1 -type f -exec chmod 0755 {} +
-	done
-	chown -R 0:0 "$idir"
+	fix_modes "$idir"
 
 	# file list (built outside the tree so it does not list itself)
 	( cd "$idir" && find . -type f -o -type l ) | sed 's|^\.||' | sort > "$WORK/$name.list"
@@ -170,62 +160,13 @@ finalize() {
 	echo ">>> built $(basename "$out") ($(du -h "$out" | cut -f1))"
 }
 
-# ------------------------------------------------------------------ opsiphon
-F="$ROOT/package/opsiphon/files"
-I="$WORK/opsiphon"
-install -d "$I/usr/bin" "$I/etc/config" "$I/etc/init.d" "$I/usr/libexec/rpcd" "$I/etc/opsiphon/data"
-install -m 0755 "$CORE"                  "$I/usr/bin/psiphon-tunnel-core"
-install -m 0644 "$F/opsiphon.config"     "$I/etc/config/opsiphon"
-install -m 0755 "$F/opsiphon.init"       "$I/etc/init.d/opsiphon"
-install -m 0755 "$F/opsiphon-mkconfig"   "$I/usr/libexec/opsiphon-mkconfig"
-install -m 0755 "$F/opsiphon-notices"    "$I/usr/libexec/opsiphon-notices"
-install -m 0755 "$F/opsiphon-stat"       "$I/usr/libexec/opsiphon-stat"
-install -m 0755 "$F/opsiphon-usage"      "$I/usr/libexec/opsiphon-usage"
-install -m 0755 "$F/opsiphon-rules"      "$I/usr/libexec/opsiphon-rules"
-install -m 0755 "$F/opsiphon-passwall"   "$I/usr/libexec/opsiphon-passwall"
-install -m 0755 "$F/luci.opsiphon"       "$I/usr/libexec/rpcd/luci.opsiphon"
+stage_opsiphon "$WORK" "$ROOT" "$CORE"
+finalize opsiphon "$ARCH" "$OPSIPHON_DEPENDS" "$OPSIPHON_DESC"
 
-echo "/etc/config/opsiphon" > "$WORK/opsiphon.conffiles"
-
-cat > "$WORK/opsiphon.postinst" <<'EOF'
-mkdir -p /etc/opsiphon/data
-/etc/init.d/rpcd reload >/dev/null 2>&1
-exit 0
-EOF
-
-cat > "$WORK/opsiphon.prerm" <<'EOF'
-/etc/init.d/opsiphon stop >/dev/null 2>&1
-/etc/init.d/opsiphon disable >/dev/null 2>&1
-exit 0
-EOF
-
-finalize opsiphon "$ARCH" "jshn libubox" \
-	"Psiphon circumvention client for OpenWrt (psiphon-tunnel-core) with procd service, UCI config, SOCKS5/HTTP proxies, egress country selection and live status collector."
-
-# ------------------------------------------------------- luci-app-opsiphon
-L="$ROOT/package/luci-app-opsiphon/root"
-I="$WORK/luci-app-opsiphon"
-install -d "$I/www/luci-static/resources/view/opsiphon" \
-           "$I/usr/share/luci/menu.d" "$I/usr/share/rpcd/acl.d"
-install -m 0644 "$L/www/luci-static/resources/view/opsiphon/overview.js" \
-	"$I/www/luci-static/resources/view/opsiphon/overview.js"
-install -m 0644 "$L/www/luci-static/resources/view/opsiphon/logo.png" \
-	"$I/www/luci-static/resources/view/opsiphon/logo.png"
-install -m 0644 "$L/usr/share/luci/menu.d/luci-app-opsiphon.json" \
-	"$I/usr/share/luci/menu.d/luci-app-opsiphon.json"
-install -m 0644 "$L/usr/share/rpcd/acl.d/luci-app-opsiphon.json" \
-	"$I/usr/share/rpcd/acl.d/luci-app-opsiphon.json"
-
-cat > "$WORK/luci-app-opsiphon.postinst" <<'EOF'
-rm -f /tmp/luci-indexcache* 2>/dev/null
-rm -rf /tmp/luci-modulecache 2>/dev/null
-/etc/init.d/rpcd reload >/dev/null 2>&1
-/etc/init.d/uhttpd restart >/dev/null 2>&1
-exit 0
-EOF
-
-finalize luci-app-opsiphon noarch "opsiphon luci-base" \
-	"LuCI web interface for Opsiphon: connect/disconnect, live tunnel status, egress country, traffic statistics, boot autostart and the Psiphon notice log."
+stage_luci "$WORK" "$ROOT"
+# apk spells architecture independent "noarch", the same string
+# include/package-pack.mk emits for PKGARCH=all
+finalize luci-app-opsiphon noarch "$LUCI_DEPENDS" "$LUCI_DESC"
 
 echo
 echo ">>> packages in $DIST"

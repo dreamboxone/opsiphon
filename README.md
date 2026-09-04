@@ -9,18 +9,38 @@ console client as a proper OpenWrt service and adds a LuCI web page, so the
 tunnel is started, watched and configured from the router's web interface
 instead of the command line.
 
-Built for **OpenWrt 25.12**, target `ipq40xx/chromium`, architecture
-`arm_cortex-a7_neon-vfpv4`. The build scripts cover other architectures too.
+Developed on **OpenWrt 25.12**, target `ipq40xx/chromium`, architecture
+`arm_cortex-a7_neon-vfpv4`. Releases also carry `.ipk` packages for **24.10
+and 23.05**, and cover four architectures; the build scripts cover more.
 
 ---
 
 ## 1. Install
 
-Ready-made packages are in `dist/`:
+Releases ship both package formats, because OpenWrt changed package manager
+in 25.12. Take the pair that matches your router:
+
+| Your OpenWrt | Package manager | Files to download |
+|---|---|---|
+| 25.12 and later | `apk` | `opsiphon-<version>.<arch>.apk` and `luci-app-opsiphon-<version>.apk` |
+| 24.10, 23.05 | `opkg` | `opsiphon_<version>_<arch>.ipk` and `luci-app-opsiphon_<version>_all.ipk` |
+
+Your architecture is `DISTRIB_ARCH` in `/etc/openwrt_release` (on 23.05 and
+24.10, `opkg print-architecture` prints it too). The `luci-app-opsiphon`
+package is architecture independent — one file fits every router.
+
+**OpenWrt 25.12 and later:**
 
 ```sh
-scp dist/*.apk root@192.168.1.1:/tmp/
+scp opsiphon-*.apk luci-app-opsiphon-*.apk root@192.168.1.1:/tmp/
 ssh root@192.168.1.1 'apk add --allow-untrusted /tmp/opsiphon-*.apk /tmp/luci-app-opsiphon-*.apk'
+```
+
+**OpenWrt 24.10 and 23.05:**
+
+```sh
+scp opsiphon_*.ipk luci-app-opsiphon_*.ipk root@192.168.1.1:/tmp/
+ssh root@192.168.1.1 'opkg update && opkg install /tmp/opsiphon_*.ipk /tmp/luci-app-opsiphon_*.ipk'
 ```
 
 Then open LuCI → **Services → Psiphon**.
@@ -32,7 +52,7 @@ tunnelling.
 Dependencies (`jshn`, `libubox`, `luci-base`) are part of a normal OpenWrt +
 LuCI installation, so no internet access is needed to install.
 
-Without packages:
+Without packages, on any release:
 
 ```sh
 ./install-manual.sh root@192.168.1.1 arm_cortex-a7_neon-vfpv4
@@ -213,8 +233,10 @@ the Advanced tab, see section 4).
 
 `.github/workflows/release.yml` builds the Psiphon core from source with Go for
 four architectures (`arm_cortex-a7_neon-vfpv4`, `aarch64_cortex-a53`,
-`mipsel_24kc`, `x86_64`), packages both `.apk` files with the apk tool from an
-official OpenWrt SDK, verifies each one, and publishes them as a GitHub Release:
+`mipsel_24kc`, `x86_64`), packages each of them twice - `.apk` with the apk
+tool from an official OpenWrt SDK, `.ipk` with `build-ipk.sh` - verifies that
+both formats really contain the same tree with an executable core, and
+publishes the lot as a GitHub Release:
 
 ```sh
 git push -u origin master        # first time
@@ -322,17 +344,33 @@ Output: `prebuilt/<openwrt-arch>/psiphon-tunnel-core`.
 
 ### The packages
 
+For OpenWrt 25.12 and later (`.apk`):
+
 ```sh
 ./build/build-apk.sh arm_cortex-a7_neon-vfpv4 \
     ~/openwrt-sdk-25.12.5-*/staging_dir/host/bin/apk
 ```
 
+For 24.10 and 23.05 (`.ipk`) — no SDK and no apk tool needed:
+
+```sh
+./build/build-ipk.sh arm_cortex-a7_neon-vfpv4
+```
+
 `build-apk.sh` performs exactly the packaging steps `include/package-pack.mk`
 performs for APK targets (file list, conffiles + sha256, install / upgrade /
-deinstall scripts) and then calls `apk mkpkg`. Nothing is compiled, so it only
-needs the `apk` tool from any 25.12 SDK — handy because the full OpenWrt build
-system refuses to run on a case-insensitive filesystem. Run it as root (or under
-a working fakeroot) so packaged files end up `root:root`.
+deinstall scripts) and then calls `apk mkpkg`. `build-ipk.sh` does the
+equivalent for opkg, assembling the `debian-binary` + `data.tar.gz` +
+`control.tar.gz` tarball that `scripts/ipkg-build` produces. Nothing is
+compiled in either case, so the apk route only needs the `apk` tool from any
+25.12 SDK and the ipk route needs nothing but tar and gzip — handy because the
+full OpenWrt build system refuses to run on a case-insensitive filesystem. Run
+them as root (or under a working fakeroot) so packaged files end up
+`root:root`.
+
+Both read their file lists from `build/packages.inc.sh`, so the two formats
+cannot drift apart; CI proves it on every build by diffing the trees it
+extracts back out of each package.
 
 On a proper Linux build host the full SDK route also works:
 
