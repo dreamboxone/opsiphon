@@ -79,7 +79,8 @@ start_service() {
 	local pw
 	config_get_bool pw config passwall_integration 1
 	if [ "$pw" = "1" ] && [ -x /usr/libexec/opsiphon-passwall ]; then
-		/usr/libexec/opsiphon-passwall sync >/dev/null 2>&1 &
+		# fully detached: start_service may be running inside an rpcd call
+		( /usr/libexec/opsiphon-passwall sync </dev/null >/dev/null 2>&1 & ) &
 	fi
 }
 

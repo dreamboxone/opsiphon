@@ -104,6 +104,18 @@ method_log() {
 	json_dump
 }
 
+# Run something without holding this request open. rpcd reads our stdout until
+# every writer closes it, so a child that keeps it would hang the browser call
+# no matter how fast we answer.
+detach() {
+	if command -v setsid >/dev/null 2>&1; then
+		setsid "$@" </dev/null >/dev/null 2>&1 &
+	else
+		( "$@" </dev/null >/dev/null 2>&1 & ) &
+	fi
+	return 0
+}
+
 method_usage() {
 	/usr/libexec/opsiphon-usage report 2>/dev/null || echo '{}'
 }
@@ -126,14 +138,14 @@ method_action() {
 	case "$name" in
 		start|connect)
 			uci -q set opsiphon.config.enabled='1' && uci -q commit opsiphon
-			/etc/init.d/opsiphon restart >/dev/null 2>&1 || rc=1
+			detach /etc/init.d/opsiphon restart
 			;;
 		stop|disconnect)
 			uci -q set opsiphon.config.enabled='0' && uci -q commit opsiphon
-			/etc/init.d/opsiphon stop >/dev/null 2>&1 || rc=1
+			detach /etc/init.d/opsiphon stop
 			;;
 		restart|reconnect)
-			/etc/init.d/opsiphon restart >/dev/null 2>&1 || rc=1
+			detach /etc/init.d/opsiphon restart
 			;;
 		pw_sync)
 			out=$(/usr/libexec/opsiphon-passwall sync 2>&1) || rc=1
@@ -151,7 +163,10 @@ method_action() {
 			out=$(/usr/libexec/opsiphon-passwall remove 2>&1) || rc=1
 			;;
 		rules_update)
-			out=$(/usr/libexec/opsiphon-rules update 2>&1) || rc=1
+			# downloading takes far longer than a browser request may last,
+			# so it runs detached and reports through the rules status
+			detach /usr/libexec/opsiphon-rules update
+			out="download started"
 			;;
 		*)
 			rc=1

@@ -84,7 +84,12 @@ ensure_iran_rule() {
 
 restart_pw() {
 	[ -x /etc/init.d/$PW ] || return 0
-	/etc/init.d/$PW status >/dev/null 2>&1 && /etc/init.d/$PW restart >/dev/null 2>&1 &
+	/etc/init.d/$PW status >/dev/null 2>&1 || return 0
+	if command -v setsid >/dev/null 2>&1; then
+		setsid /etc/init.d/$PW restart </dev/null >/dev/null 2>&1 &
+	else
+		( /etc/init.d/$PW restart </dev/null >/dev/null 2>&1 & ) &
+	fi
 	return 0
 }
 
@@ -194,8 +199,13 @@ cmd_status() {
 			[ "$(uci -q get $PW.$shunt.default_node)" = "$NODE" ] && active=1
 		fi
 		[ "$(active_node)" = "$NODE" ] && active=1
-		ver="$(opkg list-installed 2>/dev/null | sed -n 's/^luci-app-passwall2 - //p' | head -1)"
-		[ -n "$ver" ] || ver="$(apk list -I luci-app-passwall2 2>/dev/null | sed -n 's/^luci-app-passwall2-\([^ ]*\).*/\1/p' | head -1)"
+		# Version from the local package database only. Never call apk/opkg
+		# here: this runs on every status poll, and those commands can block
+		# for a long time when the router's internet is filtered.
+		ver="$(awk '/^Package: luci-app-passwall2$/{f=1} f&&/^Version:/{print $2; exit}' \
+		       /usr/lib/opkg/status 2>/dev/null)"
+		[ -n "$ver" ] || ver="$(awk -F: '/^V:/{print substr($0,3); exit}' \
+		       /lib/apk/db/installed.luci-app-passwall2 2>/dev/null)"
 	fi
 
 	printf '{"installed":%d,"running":%d,"node":%d,"node_port":"%s","active":%d,' \

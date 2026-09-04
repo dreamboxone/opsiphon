@@ -354,12 +354,19 @@ function renderRules(r) {
 	r = r || {};
 	var gi = r.geoip || {}, gs = r.geosite || {};
 	var ok = (gi.size > 0 && gs.size > 0);
+	var job = r.job || {};
+	var busy = (job.state === 'running');
 
 	setNode('ops-rules', E('div', {}, [
 		E('div', { 'style': 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;align-items:center' }, [
-			ok ? pill(_('Installed'), C.green) : pill(_('Not downloaded'), C.amber),
+			busy ? pill(_('Downloading…'), C.blue)
+			     : (ok ? pill(_('Installed'), C.green) : pill(_('Not downloaded'), C.amber)),
+			(job.state === 'error') ? pill(_('Last attempt failed'), C.red) : E('span', {}, ''),
 			E('code', { 'style': 'opacity:.75' }, r.dir || '')
 		]),
+		(busy || job.state === 'error')
+			? E('p', { 'style': 'margin:4px 0;font-size:13px;opacity:.85' }, job.message || '')
+			: E('span', {}, ''),
 		E('div', { 'style': 'display:flex;flex-wrap:wrap;gap:10px' }, [
 			E('div', { 'style': 'flex:1 1 180px;background:rgba(127,127,127,.07);border-left:3px solid %s;border-radius:6px;padding:8px 12px'.format(gi.size ? C.green : C.grey) }, [
 				E('div', { 'style': 'font-size:11px;text-transform:uppercase;opacity:.7' }, 'geoip.dat'),
@@ -373,9 +380,14 @@ function renderRules(r) {
 			])
 		]),
 		E('div', { 'style': 'margin-top:10px' }, [
-			E('button', { 'class': 'btn cbi-button cbi-button-apply', 'click': doAction('rules_update', 30000) },
-				ok ? _('Update Iran rules') : _('Download Iran rules'))
+			E('button', {
+				'class': 'btn cbi-button cbi-button-apply',
+				'disabled': busy ? 'disabled' : null,
+				'click': doAction('rules_update')
+			}, busy ? _('Downloading…') : (ok ? _('Update Iran rules') : _('Download Iran rules')))
 		]),
+		E('p', { 'style': 'margin:6px 0 0 0;font-size:12px;opacity:.7' },
+			_('The download runs in the background — this panel updates by itself when it finishes.')),
 		E('p', { 'style': 'margin:8px 0 0 0;font-size:12px;opacity:.7' },
 			_('Iran-v2ray-rules data (geoip:ir / geosite:ir). The proxy manager uses them — Psiphon itself has no routing rules — and they are what keeps Iranian traffic off the tunnel.'))
 	]));

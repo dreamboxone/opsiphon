@@ -18,6 +18,13 @@ GEOIP_URL_DEFAULT="https://github.com/chocolate4u/Iran-v2ray-rules/releases/late
 GEOSITE_URL_DEFAULT="https://github.com/chocolate4u/Iran-v2ray-rules/releases/latest/download/geosite.dat"
 
 MIN_SIZE=102400   # a truncated or error page must never replace a good file
+JOB=/var/run/opsiphon/rules.job
+
+job() {
+	# state of the running / last download, polled by the LuCI page
+	mkdir -p "$(dirname "$JOB")" 2>/dev/null
+	printf '%s|%s|%s\n' "$1" "$(date +%s)" "$2" > "$JOB"
+}
 
 asset_dir() {
 	local d
@@ -33,13 +40,13 @@ fetch() {
 
 	rm -f "$tmp"
 	if command -v uclient-fetch >/dev/null 2>&1; then
-		uclient-fetch -q -O "$tmp" "$url" && rc=0
+		uclient-fetch -q -T 30 -O "$tmp" "$url" && rc=0
 	fi
 	[ "$rc" = 0 ] || if command -v curl >/dev/null 2>&1; then
-		curl -sSL --fail -o "$tmp" "$url" && rc=0
+		curl -sSL --fail --connect-timeout 20 --max-time 300 -o "$tmp" "$url" && rc=0
 	fi
 	[ "$rc" = 0 ] || if command -v wget >/dev/null 2>&1; then
-		wget -q -O "$tmp" "$url" && rc=0
+		wget -q -T 30 -O "$tmp" "$url" && rc=0
 	fi
 
 	if [ "$rc" != 0 ] || [ ! -s "$tmp" ]; then
@@ -64,8 +71,9 @@ fetch() {
 
 update() {
 	local dir geoip_url geosite_url rc=0
+	job running "starting"
 	dir="$(asset_dir)"
-	mkdir -p "$dir" || { echo "cannot create $dir" >&2; exit 1; }
+	mkdir -p "$dir" || { job error "cannot create $dir"; echo "cannot create $dir" >&2; exit 1; }
 
 	geoip_url="$(uci -q get opsiphon.config.geoip_url)"
 	geosite_url="$(uci -q get opsiphon.config.geosite_url)"
@@ -73,7 +81,9 @@ update() {
 	[ -n "$geosite_url" ] || geosite_url="$GEOSITE_URL_DEFAULT"
 
 	echo "asset directory: $dir"
+	job running "downloading geoip.dat"
 	fetch "$geoip_url" "$dir/geoip.dat" || rc=1
+	job running "downloading geosite.dat"
 	fetch "$geosite_url" "$dir/geosite.dat" || rc=1
 
 	# Xray and sing-box may look in their own directory; keep them in sync
@@ -87,9 +97,14 @@ update() {
 	done
 
 	if [ "$rc" = 0 ]; then
-		# a proxy manager has to reload to pick up new data files
-		[ -x /etc/init.d/passwall2 ] && /etc/init.d/passwall2 restart >/dev/null 2>&1 &
+		job ok "files updated"
+		# a proxy manager has to reload to pick up the new data files
+		if [ -x /etc/init.d/passwall2 ]; then
+			( /etc/init.d/passwall2 restart </dev/null >/dev/null 2>&1 & ) &
+		fi
 		echo "done"
+	else
+		job error "download failed - check the router's internet access"
 	fi
 	return $rc
 }
@@ -105,9 +120,18 @@ file_json() {
 }
 
 status() {
-	local dir
+	local dir jstate jtime jmsg
 	dir="$(asset_dir)"
-	printf '{"dir":"%s",' "$dir"
+
+	if [ -f "$JOB" ]; then
+		jstate="$(cut -d'|' -f1 "$JOB" 2>/dev/null)"
+		jtime="$(cut -d'|' -f2 "$JOB" 2>/dev/null)"
+		jmsg="$(cut -d'|' -f3- "$JOB" 2>/dev/null)"
+	fi
+
+	printf '{"job":{"state":"%s","time":%d,"message":"%s"},' \
+		"${jstate:-idle}" "${jtime:-0}" "${jmsg:-}"
+	printf '"dir":"%s",' "$dir"
 	file_json geoip "$dir/geoip.dat"
 	printf ','
 	file_json geosite "$dir/geosite.dat"
