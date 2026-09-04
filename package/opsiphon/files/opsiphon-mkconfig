@@ -87,6 +87,7 @@ config_get sponsor_id       config sponsor_id "${l_sponsor_id:-FFFFFFFFFFFFFFFF}
 config_get propagation_id   config propagation_id "${l_propagation_id:-FFFFFFFFFFFFFFFF}"
 config_get server_list_url  config server_list_url "${l_server_list_url:-https://s3.amazonaws.com/psiphon/web/mjr4-p23r-puwl/server_list_compressed}"
 config_get server_list_key  config server_list_key "${l_server_list_key:-$DEFAULT_SERVER_LIST_KEY}"
+config_get server_entry_key config server_entry_key ''
 
 [ -n "$server_list_key" ] || server_list_key="$DEFAULT_SERVER_LIST_KEY"
 
@@ -114,6 +115,22 @@ else
 fi
 printf '  "RemoteServerListDownloadFilename": "remote_server_list",\n'
 printf '  "RemoteServerListSignaturePublicKey": "%s",\n' "$(json_escape "$server_list_key")"
+
+# Psiphon verifies individual server entries from the DSL (dynamic server
+# list) discovery service against ServerEntrySignaturePublicKey. That value
+# "is supplied by and depends on the Psiphon Network, and is typically
+# embedded in the client binary" - it is not published, so a build from
+# source does not have it. The DSL fetcher is switched on by server-side
+# tactics regardless, and every fetch then dies in VerifySignature with
+# "missing public key", which is what the GUI ends up showing as the last
+# event. Turn the fetcher off unless a key was actually configured; the
+# tunnel itself does not need it, the remote server list above covers
+# bootstrapping.
+if [ -n "$server_entry_key" ]; then
+	printf '  "ServerEntrySignaturePublicKey": "%s",\n' "$(json_escape "$server_entry_key")"
+else
+	printf '  "DisableDSLFetcher": true,\n'
+fi
 printf '  "DataRootDirectory": "%s",\n'    "$(json_escape "$data_dir")"
 printf '  "LocalSocksProxyPort": %d,\n'    "${socks_port:-1080}"
 printf '  "LocalHttpProxyPort": %d,\n'     "${http_port:-8080}"
