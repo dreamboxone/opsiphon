@@ -173,6 +173,15 @@ jobs:
           NOTES
           sed -i 's/^          //' notes.md
 
-          gh release create "$tag" release/* \
-            --title "Opsiphon $tag" \
-            --notes-file notes.md
+          # the tag may already have an (empty) release attached - one made
+          # by hand before the build was green, for instance - and
+          # `gh release create` refuses to overwrite it, so upload into it
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists - updating it"
+            gh release upload "$tag" release/* --clobber
+            gh release edit   "$tag" --title "Opsiphon $tag" --notes-file notes.md
+          else
+            gh release create "$tag" release/* \
+              --title "Opsiphon $tag" \
+              --notes-file notes.md
+          fi
