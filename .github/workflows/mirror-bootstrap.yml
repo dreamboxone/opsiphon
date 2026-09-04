@@ -70,8 +70,10 @@ jobs:
       - name: Commit when the list changed
         run: |
           set -eu
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # commit under the repository owner's GitHub noreply identity, so
+          # the automation does not add a second name to the contributor list
+          git config user.name  "dreamboxone"
+          git config user.email "59113007+dreamboxone@users.noreply.github.com"
 
           if git diff --quiet -- mirror/server_list_compressed; then
             echo "server list unchanged - nothing to commit"
