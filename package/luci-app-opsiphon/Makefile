@@ -33,7 +33,7 @@ endef
 
 define Package/luci-app-opsiphon/description
  Web interface for Opsiphon: connect / disconnect, live tunnel status,
- country selection, traffic statistics, boot autostart and the
+ egress country selection, traffic statistics, boot autostart and the
  Psiphon notice log - all from LuCI.
 endef
 

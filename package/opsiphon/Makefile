@@ -40,7 +40,7 @@ define Package/opsiphon/description
  source psiphon-tunnel-core console client.
 
  Provides a procd service, UCI configuration, a local SOCKS5 and HTTP proxy,
- country selection and a live status / traffic statistics collector
+ egress country selection and a live status / traffic statistics collector
  that feeds luci-app-opsiphon.
 endef
 

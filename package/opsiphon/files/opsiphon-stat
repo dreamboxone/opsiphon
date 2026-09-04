@@ -43,7 +43,7 @@ tunnels=$(get tunnels)
 [ "${tunnels:-0}" -gt 0 ] 2>/dev/null && conn=connected || conn=disconnected
 
 echo "tunnel          : $conn (${tunnels:-0} tunnel(s))"
-echo "country         : $(get server_region)"
+echo "egress region   : $(get server_region)"
 echo "client region   : $(get client_region)"
 echo "socks proxy     : 127.0.0.1:$(get socks_port)"
 echo "http proxy      : 127.0.0.1:$(get http_port)"

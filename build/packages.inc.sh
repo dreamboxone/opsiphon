@@ -21,8 +21,8 @@ MAINTAINER="routekernel <https://t.me/routekernel1>"
 OPSIPHON_DEPENDS="jshn libubox"
 LUCI_DEPENDS="opsiphon luci-base"
 
-OPSIPHON_DESC="Psiphon circumvention client for OpenWrt (psiphon-tunnel-core) with procd service, UCI config, SOCKS5/HTTP proxies, country selection and live status collector."
-LUCI_DESC="LuCI web interface for Opsiphon: connect/disconnect, live tunnel status, country, traffic statistics, boot autostart and the Psiphon notice log."
+OPSIPHON_DESC="Psiphon circumvention client for OpenWrt (psiphon-tunnel-core) with procd service, UCI config, SOCKS5/HTTP proxies, egress country selection and live status collector."
+LUCI_DESC="LuCI web interface for Opsiphon: connect/disconnect, live tunnel status, egress country, traffic statistics, boot autostart and the Psiphon notice log."
 
 # stage_opsiphon <staging-root> <source-root> <core-binary>
 #
