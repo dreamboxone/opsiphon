@@ -113,12 +113,24 @@ function logline(nt, msg) {
 # GUI already says how long it has been trying and over how many attempts, and
 # every one of these still goes to the notice log for View notices.
 function noisy(msg,   i, pats, n) {
+	# Psiphon traces its errors through the call chain, so a failed attempt
+	# arrives looking like
+	#
+	#   psiphon.GetTactics#166: psiphon.fetchTactics#298: psiphon.DialMeek#579:
+	#   tlsdialer.Dial#699: EOF
+	#
+	# That "name#line:" shape only ever appears in an internal trace, and no
+	# reader of this GUI can do anything with one. Treat it as internal
+	# whatever the notice type says.
+	if (msg ~ /[A-Za-z_)]#[0-9]+:/) return 1
+
 	n = split("SOCKS proxy accept error" SUBSEP \
 	          "HTTP proxy accept error" SUBSEP \
 	          "meek round trip failed" SUBSEP \
 	          "connection reset by peer" SUBSEP \
 	          "i/o timeout" SUBSEP \
-	          "context deadline exceeded", pats, SUBSEP)
+	          "context deadline exceeded" SUBSEP \
+	          "tactics request failed", pats, SUBSEP)
 	for (i = 1; i <= n; i++)
 		if (index(msg, pats[i]) > 0) return 1
 	return 0

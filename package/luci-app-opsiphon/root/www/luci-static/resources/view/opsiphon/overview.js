@@ -274,7 +274,15 @@ function renderState(st) {
 	setNode('ops-proxies', (st.running && (st.socks_port > 0 || st.http_port > 0))
 		? 'SOCKS5 127.0.0.1:%d   ·   HTTP 127.0.0.1:%d'.format(st.socks_port || 0, st.http_port || 0) : '-');
 	setNode('ops-boot', st.autostart ? _('Enabled') : _('Disabled'));
-	setNode('ops-event', '%s %s'.format(st.last_event || '-', st.last_message || ''));
+	/* Not the raw notice stream. last_event is whatever notice arrived last and
+	   last_message is whatever was worth saying last; pasting the two together
+	   produced lines like "ConnectingServer psiphon.(*MeekConn).relay#1425: EOF",
+	   which is a notice type welded to an unrelated stale trace. The collector
+	   now only fills last_message when there is something the reader can act
+	   on, so show that when it exists and plain state otherwise. */
+	setNode('ops-status', st.last_message ? st.last_message
+		: (!st.running ? _('Stopped')
+		: (st.connected ? _('Connected') : _('Waiting to connect'))));
 
 	var box = document.getElementById('ops-trouble');
 	if (box) {
@@ -522,7 +530,7 @@ return view.extend({
 					row(_('This session (down / up)'), 'ops-session', '-'),
 					row(_('Local proxies'), 'ops-proxies', '-'),
 					row(_('Start on boot'), 'ops-boot', '-'),
-					row(_('Last event'), 'ops-event', '-'),
+					row(_('Status'), 'ops-status', '-'),
 					E('div', { 'style': 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px' }, [
 						E('button', { 'class': 'btn cbi-button cbi-button-apply', 'id': 'ops-btn-connect', 'click': doAction('start', 2500) }, _('Connect')),
 						E('button', { 'class': 'btn cbi-button cbi-button-reset', 'id': 'ops-btn-disconnect', 'click': doAction('stop') }, _('Disconnect')),
