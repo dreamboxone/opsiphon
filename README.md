@@ -102,7 +102,7 @@ to go back.
 | **Traffic (down / up)** | Bytes received / sent through the tunnel since it was started |
 | **Local proxies** | The SOCKS5 and HTTP proxy addresses the tunnel is offering |
 | **Start on boot** | Whether the tunnel comes back after a reboot |
-| **Last event** | Latest Psiphon notice (useful when it will not connect) |
+| **Status** | Connected, Waiting to connect, or a message when there is something to act on |
 
 The panel refreshes every 3 seconds.
 
@@ -113,7 +113,7 @@ The panel refreshes every 3 seconds.
 | **Connect** | Sets `enabled=1` and starts the service. This is the only switch that starts the tunnel. |
 | **Disconnect** | Sets `enabled=0` and stops the service. |
 | **Reconnect** | Restarts the service — use it after changing settings, or to get a different server. |
-| **View notices** | Shows the recent Psiphon notice log (newest first) — the place to look when something fails. |
+| **Logs** | Shows the recent Psiphon notice log (newest first) — the place to look when something fails. |
 
 ### General tab
 
@@ -183,11 +183,11 @@ blocks. What the box tells you to do, in order:
 **“Servers known, but no tunnel yet”** — Psiphon has servers and is cycling
 through them and through its obfuscation protocols; under heavy filtering this
 can take minutes. Leave *Limit tunnel protocols* empty, set *Country*
-back to Auto, and use **View notices** to watch what each attempt reports.
+back to Auto, and use **Logs** to watch what each attempt reports.
 
 Either way the last warning or error from Psiphon is shown under
 **Last message**, shortened to the part that matters, and the full history is in
-**View notices** (or `opsiphon-stat -l` over SSH).
+**Logs** (or `opsiphon-stat -l` over SSH).
 
 ---
 

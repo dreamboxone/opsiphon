@@ -240,7 +240,7 @@ function troubleShooting(st) {
 			E('ul', { 'style': 'margin:4px 0 4px 18px' }, [
 				E('li', {}, _('Leave Limit tunnel protocols empty.')),
 				E('li', {}, _('Set Country back to Auto.')),
-				E('li', {}, _('Use View notices to see what each attempt reports.'))
+				E('li', {}, _('Open Logs to see what each attempt reports.'))
 			])
 		];
 	}
@@ -535,7 +535,7 @@ return view.extend({
 						E('button', { 'class': 'btn cbi-button cbi-button-apply', 'id': 'ops-btn-connect', 'click': doAction('start', 2500) }, _('Connect')),
 						E('button', { 'class': 'btn cbi-button cbi-button-reset', 'id': 'ops-btn-disconnect', 'click': doAction('stop') }, _('Disconnect')),
 						E('button', { 'class': 'btn cbi-button', 'click': doAction('restart', 2500) }, _('Reconnect')),
-						E('button', { 'class': 'btn cbi-button', 'click': ui.createHandlerFn(this, showLog) }, _('View notices'))
+						E('button', { 'class': 'btn cbi-button', 'click': ui.createHandlerFn(this, showLog) }, _('Logs'))
 					])
 				]),
 				E('div', { 'style': 'flex:0 0 auto;text-align:center' }, [ logo ])
