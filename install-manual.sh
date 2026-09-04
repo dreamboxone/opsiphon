@@ -35,6 +35,7 @@ if [ -n "$1" ] && [ "$1" != "--local" ]; then
 		package/opsiphon/files \
 		package/luci-app-opsiphon/root \
 		"prebuilt/$ARCH/psiphon-tunnel-core" \
+		"prebuilt/$ARCH/core-revision.txt" \
 		install-manual.sh
 
 	echo ">>> copying to $TARGET"
@@ -62,6 +63,11 @@ CORE="$ROOT/prebuilt/$ARCH/psiphon-tunnel-core"
 echo ">>> installing core binary"
 install -d /usr/bin
 install -m 0755 "$CORE" /usr/bin/psiphon-tunnel-core
+REV="$(dirname "$CORE")/core-revision.txt"
+if [ -s "$REV" ]; then
+	install -d /etc/opsiphon
+	install -m 0644 "$REV" /etc/opsiphon/core-revision
+fi
 
 echo ">>> installing service"
 install -d /etc/config /etc/init.d /usr/libexec /usr/libexec/rpcd /etc/opsiphon/data

@@ -67,6 +67,28 @@ fi
 REV="$(git -C "$SRC" rev-parse --short=10 HEAD)"
 echo ">>> core revision : $REV"
 
+# Build with exactly the toolchain psiphon-tunnel-core asks for, not merely
+# one that is new enough. psiphon-tls reaches into crypto/tls with unsafe and
+# asserts at init() that its own copy of tls.ConnectionState still matches the
+# real one; a newer Go that added a field to that struct produces a binary
+# that panics the moment it starts:
+#
+#   panic: tls: ConnectionState is not equal to tls.ConnectionState:
+#          struct field count mismatch: 18 vs 17
+#
+# Go honours the `toolchain` line as a minimum, so `go-version: stable` in CI
+# happily builds a broken binary. Pinning GOTOOLCHAIN makes Go fetch and use
+# that exact release instead.
+TOOLCHAIN="$(sed -n 's/^toolchain[[:space:]]*//p' "$SRC/go.mod" | head -1)"
+if [ -z "$TOOLCHAIN" ]; then
+	TOOLCHAIN="go$(sed -n 's/^go[[:space:]]*//p' "$SRC/go.mod" | head -1)"
+fi
+case "$TOOLCHAIN" in
+	go[0-9]*) export GOTOOLCHAIN="$TOOLCHAIN"
+	          echo ">>> toolchain     : $GOTOOLCHAIN (pinned from go.mod)" ;;
+	*)        echo ">>> toolchain     : $(go env GOVERSION) (no pin found in go.mod)" ;;
+esac
+
 OUT="$ROOT/prebuilt/$OUTDIR/psiphon-tunnel-core"
 mkdir -p "$(dirname "$OUT")"
 

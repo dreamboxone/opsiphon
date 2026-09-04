@@ -11,6 +11,7 @@
 STATE=/var/run/opsiphon/state
 LOG=/var/log/opsiphon/notices.log
 VERSION_CACHE=/var/run/opsiphon/core_version
+CORE_REV=/etc/opsiphon/core-revision
 CORE=/usr/bin/psiphon-tunnel-core
 
 state_get() {
@@ -24,14 +25,18 @@ num() {
 	esac
 }
 
+# Never execute the core from here. This runs on every status poll, inside an
+# rpcd request the browser is waiting on, and the core is a 20 MB static
+# binary: if it is slow to start - or dies before main, which a core built
+# with the wrong Go toolchain does - the whole page hangs instead of loading.
+# The revision is a build-time fact, so it ships as a file.
 core_version() {
-	if [ ! -s "$VERSION_CACHE" ]; then
-		mkdir -p /var/run/opsiphon
-		if [ -x "$CORE" ]; then
-			"$CORE" -v 2>&1 | tr -d '\r' | head -c 500 > "$VERSION_CACHE" 2>/dev/null
-		fi
+	if [ -s "$CORE_REV" ]; then
+		head -1 "$CORE_REV"
+		return
 	fi
-	# `-v` prints human readable lines: "  Revision: <rev>"
+	# packages from before that file was shipped, and manual installs: fall
+	# back to whatever was cached from `psiphon-tunnel-core -v`
 	sed -n 's/^[ 	]*Revision:[ 	]*//p' "$VERSION_CACHE" 2>/dev/null | head -1
 }
 
@@ -50,8 +55,14 @@ method_state() {
 	[ -n "$enabled" ] || enabled=0
 	[ "$enabled" = "1" ] && enabled=1 || enabled=0
 
+	# This is exactly what `/etc/init.d/opsiphon enabled` tests, done inline.
+	# Running the init script here drags in rc.common and procd.sh, and that
+	# blocks the request whenever procd is busy - while it is respawning a
+	# core that will not start, for instance.
 	autostart=0
-	/etc/init.d/opsiphon enabled >/dev/null 2>&1 && autostart=1
+	for l in /etc/rc.d/S??opsiphon; do
+		[ -L "$l" ] && autostart=1
+	done
 
 	json_init
 	json_add_string "version" "1.0.2"

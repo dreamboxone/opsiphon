@@ -12,7 +12,7 @@
 # Not executable on its own.
 
 VERSION=1.0.2
-RELEASE=2
+RELEASE=3
 PKGVER="$VERSION-r$RELEASE"
 LICENSE="GPL-3.0-only"
 URL="https://github.com/dreamboxone/opsiphon"
@@ -47,6 +47,14 @@ stage_opsiphon() {
 	install -m 0755 "$f/opsiphon-rules"      "$i/usr/libexec/opsiphon-rules"
 	install -m 0755 "$f/opsiphon-passwall"   "$i/usr/libexec/opsiphon-passwall"
 	install -m 0755 "$f/luci.opsiphon"       "$i/usr/libexec/rpcd/luci.opsiphon"
+
+	# Ship the core revision as a file. The GUI shows it, and reading a file
+	# is the only way to get it without running the core inside an rpcd
+	# request - see core_version() in luci.opsiphon.
+	rev="$(dirname "$core")/core-revision.txt"
+	if [ -s "$rev" ]; then
+		install -m 0644 "$rev" "$i/etc/opsiphon/core-revision"
+	fi
 
 	echo "/etc/config/opsiphon" > "$work/opsiphon.conffiles"
 

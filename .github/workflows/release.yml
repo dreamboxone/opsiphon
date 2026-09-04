@@ -65,6 +65,21 @@ jobs:
           ls -l prebuilt/${{ matrix.openwrt_arch }}/psiphon-tunnel-core
           file prebuilt/${{ matrix.openwrt_arch }}/psiphon-tunnel-core
 
+      - name: Smoke test the core
+        if: matrix.name == 'x86_64'
+        run: |
+          set -euo pipefail
+          # The runner can execute the x86_64 build, so actually start it.
+          # psiphon-tls checks its own view of crypto/tls in init(), and a
+          # Go toolchain newer than the one go.mod asks for produces a binary
+          # that panics before main ever runs:
+          #
+          #   panic: tls: ConnectionState is not equal to tls.ConnectionState
+          #
+          # Nothing else in this pipeline would notice - the cross builds are
+          # not runnable here - so every architecture would ship dead.
+          ./prebuilt/x86_64/psiphon-tunnel-core -v
+
       - name: Fetch the apk tool from an OpenWrt SDK
         run: |
           set -euo pipefail
