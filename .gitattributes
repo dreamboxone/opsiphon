@@ -6,6 +6,7 @@
 install-manual.sh text eol=lf
 package/opsiphon/files/*  text eol=lf
 .github/workflows/*.yml   text eol=lf
+Makefile          text eol=lf
 
 # the prebuilt Psiphon core must never be touched by any filter
 prebuilt/**       binary
