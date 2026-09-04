@@ -120,9 +120,9 @@ method_log() {
 # no matter how fast we answer.
 detach() {
 	if command -v setsid >/dev/null 2>&1; then
-		setsid "$@" </dev/null >/dev/null 2>&1 &
+		setsid "$@" </dev/null >/dev/null 2>&1 1000>&- &
 	else
-		( "$@" </dev/null >/dev/null 2>&1 & ) &
+		( "$@" </dev/null >/dev/null 2>&1 1000>&- & ) &
 	fi
 	return 0
 }

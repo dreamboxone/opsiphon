@@ -20,6 +20,14 @@ LOG_DIR=/var/log/opsiphon
 sync_autostart() {
 	local autostart
 	config_get_bool autostart config autostart 1
+	# Only touch the rc.d symlinks when invoked as /etc/init.d/opsiphon. At
+	# boot this runs as /etc/rc.d/S95opsiphon, and rc.common's enable() then
+	# builds a dangling K10S95opsiphon -> ../init.d/S95opsiphon link, because
+	# it only strips a K-prefix from the K name.
+	case "$(basename "${initscript:-opsiphon}")" in
+		opsiphon) ;;
+		*) return 0 ;;
+	esac
 	if [ "$autostart" = "1" ]; then
 		enable
 	else
@@ -79,8 +87,12 @@ start_service() {
 	local pw
 	config_get_bool pw config passwall_integration 1
 	if [ "$pw" = "1" ] && [ -x /usr/libexec/opsiphon-passwall ]; then
-		# fully detached: start_service may be running inside an rpcd call
-		( /usr/libexec/opsiphon-passwall sync </dev/null >/dev/null 2>&1 & ) &
+		# Fully detached, and with fd 1000 closed. That fd is the procd
+		# lock rc.common holds while this runs; PassWall2 restarts from
+		# here and every daemon it spawns - xray included - would inherit
+		# the lock and hold it for as long as it lives. Anything that ran
+		# /etc/init.d/opsiphon afterwards would then block forever.
+		( /usr/libexec/opsiphon-passwall sync </dev/null >/dev/null 2>&1 1000>&- & ) &
 	fi
 }
 
