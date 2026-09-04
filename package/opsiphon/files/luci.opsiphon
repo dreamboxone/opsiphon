@@ -65,7 +65,7 @@ method_state() {
 	done
 
 	json_init
-	json_add_string "version" "1.0.3"
+	json_add_string "version" "1.0.4"
 	json_add_string "core_rev" "$(core_version)"
 	json_add_boolean "running" "$running"
 	json_add_boolean "connected" "$connected"

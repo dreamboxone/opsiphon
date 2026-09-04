@@ -12,7 +12,7 @@
 'require ui';
 'require uci';
 
-var OPSIPHON_VERSION = '1.0.3';
+var OPSIPHON_VERSION = '1.0.4';
 var OPSIPHON_TELEGRAM = 'https://t.me/routekernel1';
 var OPSIPHON_REPO = 'https://github.com/dreamboxone/opsiphon';
 
@@ -577,7 +577,7 @@ return view.extend({
 
 		o = s.taboption('general', form.Flag, 'autostart', _('Start on boot'),
 			_('Re-open the tunnel automatically after the router reboots.'));
-		o.default = '1'; o.rmempty = false;
+		o.default = '0'; o.rmempty = false;
 
 		o = s.taboption('general', form.ListValue, 'region', _('Country'),
 			_('Country the traffic leaves the Psiphon network from. Auto lets Psiphon pick the fastest server.'));

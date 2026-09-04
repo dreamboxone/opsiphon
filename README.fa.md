@@ -2,7 +2,7 @@
 
 # Opsiphon — سایفون برای OpenWrt (با رابط گرافیکی LuCI)
 
-**نسخه ۱.۰.۳** · پشتیبانی و تماس: [t.me/routekernel1](https://t.me/routekernel1)
+**نسخه ۱.۰.۴** · پشتیبانی و تماس: [t.me/routekernel1](https://t.me/routekernel1)
 🇬🇧 **[English guide: README.md](README.md)**
 
 Opsiphon کلاینت کنسولی متن‌باز

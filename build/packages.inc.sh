@@ -11,8 +11,8 @@
 #
 # Not executable on its own.
 
-VERSION=1.0.3
-RELEASE=2
+VERSION=1.0.4
+RELEASE=1
 PKGVER="$VERSION-r$RELEASE"
 LICENSE="GPL-3.0-only"
 URL="https://github.com/dreamboxone/opsiphon"

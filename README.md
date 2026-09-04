@@ -1,6 +1,6 @@
 # Opsiphon — Psiphon for OpenWrt (with LuCI GUI)
 
-**Version 1.0.3** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
+**Version 1.0.4** · support / contact: [t.me/routekernel1](https://t.me/routekernel1)
 🇮🇷 **[راهنمای فارسی: README.fa.md](README.fa.md)**
 
 Opsiphon runs the open source

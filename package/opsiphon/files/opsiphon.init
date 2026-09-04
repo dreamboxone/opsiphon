@@ -19,7 +19,7 @@ LOG_DIR=/var/log/opsiphon
 
 sync_autostart() {
 	local autostart
-	config_get_bool autostart config autostart 1
+	config_get_bool autostart config autostart 0
 	# Only touch the rc.d symlinks when invoked as /etc/init.d/opsiphon. At
 	# boot this runs as /etc/rc.d/S95opsiphon, and rc.common's enable() then
 	# builds a dangling K10S95opsiphon -> ../init.d/S95opsiphon link, because
